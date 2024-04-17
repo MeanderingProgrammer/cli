@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path"
 	"slices"
+	"strings"
 
 	"github.com/charmbracelet/huh"
 )
@@ -165,18 +167,29 @@ func run_update_aliases(aliasGroups AliasGroups) {
 		return
 	}
 
-	// def overwrite(groups: AliasGroups) -> None:
-	//     lines: list[str] = []
-	//     for group in groups.groups:
-	//         lines.append(f"# {group.name}")
-	//         for alias in group.aliases:
-	//             lines.append(f'alias {alias.name}="{alias.command}"')
-	//         lines.append("")
-	//     alias_file = Path.home().joinpath(".config/shell/aliases.sh")
-	//     alias_file.write_text("\n".join(lines))
-	//     print(f"Successfully updated {alias_file}")
+	lines := []string{}
+	for _, group := range aliasGroups.Groups {
+		lines = append(lines, fmt.Sprintf("# %s", group.Name))
+		for _, alias := range group.Aliases {
+			lines = append(lines, fmt.Sprintf("alias %s=\"%s\"", alias.Name, alias.Command))
+		}
+		lines = append(lines, "")
+	}
 
-	fmt.Println("TODO UPDATE")
+	home := os.Getenv("HOME")
+	aliasFilePath := path.Join(home, ".config/shell/aliases.sh")
+	aliasFile, err := os.Create(aliasFilePath)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer aliasFile.Close()
+
+	contents := strings.Join(lines, "\n")
+	_, err = aliasFile.WriteString(contents)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Printf("Successfully updated %s\n", aliasFilePath)
 }
 
 func getUserSelection(title string, values []string) string {
@@ -206,7 +219,7 @@ func getUserUpdate() bool {
 	form := huh.NewForm(
 		huh.NewGroup(
 			huh.NewConfirm().
-				Title("Do you want to update aliases?").
+				Title("Are you sure you want to update aliases?").
 				Value(&update),
 		),
 	)
