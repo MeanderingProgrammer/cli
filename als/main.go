@@ -74,7 +74,7 @@ func NewAliasGroups() AliasGroups {
 			Alias{Name: "yc", Command: "yadm commit -m"},
 			Alias{Name: "yac", Command: strings.Join([]string{
 				"yadm add",
-				"~/.github/",
+				"~/docs/",
 				"~/.config/alacritty/",
 				"~/.config/git/",
 				"~/.config/helix/",
