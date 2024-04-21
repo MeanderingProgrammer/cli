@@ -81,6 +81,7 @@ func NewAliasGroups() AliasGroups {
 				"~/.config/homebrew/",
 				"~/.config/kitty/",
 				"~/.config/lang/",
+				"~/.config/npm/",
 				"~/.config/nvim/",
 				"~/.config/shell/",
 				"~/.config/tmux/",
