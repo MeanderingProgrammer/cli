@@ -85,6 +85,7 @@ func NewAliasGroups() AliasGroups {
 				"~/.config/nvim/",
 				"~/.config/shell/",
 				"~/.config/tmux/",
+				"~/.config/vim/",
 				"~/.config/wezterm/",
 				"~/.config/yadm/",
 			}, " ")},
