@@ -44,7 +44,7 @@ func NewAliasGroups() AliasGroups {
 			"General",
 			Alias{Name: "reload", Command: "source ~/.zshrc"},
 			Alias{Name: "update-sys", Command: "yadm pull && yadm bootstrap"},
-			Alias{Name: "ll", Command: "ls -latr"},
+			Alias{Name: "ll", Command: "ls -latrh"},
 			Alias{Name: "workspace", Command: "cd ~/dev/repos/personal"},
 			Alias{Name: "notes", Command: "cd ~/Documents/notes"},
 		),
