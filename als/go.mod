@@ -1,6 +1,6 @@
 module als
 
-go 1.22.0
+go 1.22
 
 require github.com/charmbracelet/huh v0.3.0
 
