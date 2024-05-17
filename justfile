@@ -1,9 +1,9 @@
 install:
-    # Rust
-    cargo install --path weather
-    asdf reshim rust
+  # Rust
+  cargo install --path weather
+  asdf reshim rust
 
-    # Go
-    cd als && go install
-    cd update-asdf && go install
-    asdf reshim golang
+  # Go
+  cd als && go install
+  cd update-asdf && go install
+  asdf reshim golang
