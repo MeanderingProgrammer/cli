@@ -1,6 +1,6 @@
 pub use crate::renderer::RendererName;
 pub use crate::theme::ThemeName;
-use anyhow::{Context, Ok, Result};
+use anyhow::{bail, Ok, Result};
 use std::fs::File;
 use std::time::Instant;
 
@@ -46,9 +46,11 @@ pub fn run(input: File, output: File, config: Config) -> Result<()> {
     let count = stdout.len() as u64;
     let frames = vt::frames(stdout.into_iter(), terminal_size);
 
-    let (font_db, font_families) = fonts::init(&config.font_dirs, &config.fonts).context(
-        format!("no faces matching font families {:?}", config.fonts),
-    )?;
+    let font_db = fonts::CachingFontDb::new(&config.font_dirs);
+    let font_families = font_db.available_fonts(&config.fonts);
+    if font_families.is_empty() {
+        bail!("no faces matching font families {:?}", config.fonts);
+    }
     log::info!("selected font families: {:?}", font_families);
 
     log::info!("selected theme: {:?}", config.theme);

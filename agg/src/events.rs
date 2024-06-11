@@ -1,7 +1,7 @@
 use anyhow::{bail, Context, Error, Result};
 use std::str::FromStr;
 
-#[derive(PartialEq, Eq, Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum EventType {
     Output,
     Input,

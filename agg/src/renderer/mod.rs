@@ -1,9 +1,9 @@
+use crate::fonts::CachingFontDb;
 use crate::theme::Theme;
 use crate::vt::Frame;
 use avt::{Color, Pen};
 use clap::ValueEnum;
 use imgref::ImgVec;
-use resvg::usvg::fontdb::Database;
 use rgb::{RGB8, RGBA8};
 
 mod font;
@@ -34,7 +34,7 @@ pub trait Renderer {
 #[derive(Debug)]
 pub struct Settings {
     pub terminal_size: (usize, usize),
-    pub font_db: Database,
+    pub font_db: CachingFontDb,
     pub font_families: Vec<String>,
     pub font_size: usize,
     pub line_height: f64,

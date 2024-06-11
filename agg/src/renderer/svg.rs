@@ -59,7 +59,7 @@ impl<'a> SvgRenderer<'a> {
         let font_size = settings.font_size as f64;
         let row_height = font_size * settings.line_height;
         let options = Options {
-            fontdb: Arc::new(settings.font_db),
+            fontdb: Arc::new(settings.font_db.db),
             ..Options::default()
         };
         let transform = Transform::default();
@@ -131,7 +131,6 @@ impl<'a> SvgRenderer<'a> {
         let (cols, rows) = self.terminal_size;
 
         svg.push_str(r#"<g style="shape-rendering: optimizeSpeed">"#);
-
         for (row, line) in frame.lines.iter().enumerate() {
             let y = 100.0 * (row as f64) / (rows as f64 + 1.0);
 
@@ -152,7 +151,6 @@ impl<'a> SvgRenderer<'a> {
                 );
             }
         }
-
         svg.push_str("</g>");
     }
 
@@ -160,13 +158,11 @@ impl<'a> SvgRenderer<'a> {
         let (cols, rows) = self.terminal_size;
 
         svg.push_str(r#"<text class="default-text-fill">"#);
-
         for (row, line) in frame.lines.iter().enumerate() {
             let y = 100.0 * (row as f64) / (rows as f64 + 1.0);
             let mut did_dy = false;
 
             let _ = write!(svg, r#"<tspan y="{y:.3}%">"#);
-
             for (col, (ch, pen)) in line.iter().enumerate() {
                 if ch == &' ' {
                     continue;
@@ -175,7 +171,6 @@ impl<'a> SvgRenderer<'a> {
                 let attrs = text_attrs(pen, &frame.cursor, col, row, &self.theme);
 
                 svg.push_str("<tspan ");
-
                 if !did_dy {
                     svg.push_str(r#"dy="1em" "#);
                     did_dy = true;
@@ -188,37 +183,17 @@ impl<'a> SvgRenderer<'a> {
                 let _ = write!(svg, r#"x="{x:.3}%" class="{class}" style="{style}">"#);
 
                 match ch {
-                    '\'' => {
-                        svg.push_str("&#39;");
-                    }
-
-                    '"' => {
-                        svg.push_str("&quot;");
-                    }
-
-                    '&' => {
-                        svg.push_str("&amp;");
-                    }
-
-                    '>' => {
-                        svg.push_str("&gt;");
-                    }
-
-                    '<' => {
-                        svg.push_str("&lt;");
-                    }
-
-                    _ => {
-                        svg.push(*ch);
-                    }
+                    '\'' => svg.push_str("&#39;"),
+                    '"' => svg.push_str("&quot;"),
+                    '&' => svg.push_str("&amp;"),
+                    '>' => svg.push_str("&gt;"),
+                    '<' => svg.push_str("&lt;"),
+                    _ => svg.push(*ch),
                 }
-
                 svg.push_str("</tspan>");
             }
-
             svg.push_str("</tspan>");
         }
-
         svg.push_str("</text>");
     }
 }
@@ -232,7 +207,7 @@ impl<'a> Renderer for SvgRenderer<'a> {
 
         let mut pixmap = Pixmap::new(self.pixel_width as u32, self.pixel_height as u32).unwrap();
 
-        ::resvg::render(&tree, self.transform, &mut pixmap.as_mut());
+        resvg::render(&tree, self.transform, &mut pixmap.as_mut());
         let buf = pixmap.take().as_rgba().to_vec();
 
         ImgVec::new(buf, self.pixel_width, self.pixel_height)
