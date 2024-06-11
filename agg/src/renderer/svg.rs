@@ -1,11 +1,11 @@
-use crate::renderer::{color_to_rgb, text_attrs, Renderer, Settings};
+use crate::renderer::{text_attrs, Renderer, Settings};
 use crate::theme::Theme;
 use crate::vt::Frame;
-use avt::{Color, Pen};
+use avt::Pen;
 use imgref::ImgVec;
 use resvg::tiny_skia::{Pixmap, Transform};
 use resvg::usvg::{Options, Tree};
-use rgb::{FromSlice, RGBA8};
+use rgb::{FromSlice, RGB8, RGBA8};
 use std::fmt::Write as _;
 use std::sync::Arc;
 
@@ -22,8 +22,7 @@ pub struct SvgRenderer<'a> {
     header: String,
 }
 
-fn color_to_style(color: &Color, theme: &Theme) -> String {
-    let c = color_to_rgb(color, theme);
+fn color_to_style(c: &RGB8) -> String {
     format!("fill: rgb({},{},{})", c.r, c.g, c.b)
 }
 
@@ -41,15 +40,9 @@ fn text_class(pen: &Pen) -> String {
     class
 }
 
-fn text_style(foreground: Option<Color>, theme: &Theme) -> String {
-    foreground
-        .map(|c| color_to_style(&c, theme))
-        .unwrap_or_else(|| "".to_owned())
-}
-
-fn rect_style(background: Option<Color>, theme: &Theme) -> String {
+fn rect_style(background: Option<RGB8>) -> String {
     background
-        .map(|c| color_to_style(&c, theme))
+        .map(|c| color_to_style(&c))
         .unwrap_or_else(|| "".to_owned())
 }
 
@@ -142,7 +135,7 @@ impl<'a> SvgRenderer<'a> {
                 }
 
                 let x = 100.0 * (col as f64) / (cols as f64 + 2.0);
-                let style = rect_style(attrs.background, &self.theme);
+                let style = rect_style(attrs.background);
 
                 let _ = write!(
                     svg,
@@ -178,7 +171,7 @@ impl<'a> SvgRenderer<'a> {
 
                 let x = 100.0 * (col as f64) / (cols as f64 + 2.0);
                 let class = text_class(pen);
-                let style = text_style(attrs.foreground, &self.theme);
+                let style = color_to_style(&attrs.foreground);
 
                 let _ = write!(svg, r#"x="{x:.3}%" class="{class}" style="{style}">"#);
 

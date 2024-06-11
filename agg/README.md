@@ -49,7 +49,7 @@ Run `agg -h` to see all available options. Current options are:
     Select frame rendering backend [default: fontdue] [possible values: fontdue, resvg]
 
 --font <FONT>
-    Specify font family [default: "JetBrains Mono" "Fira Code" "SF Mono"]
+    Specify font family [default: "Monaspace Neon" "Symbols Nerd Font" "JetBrainsMono Nerd Font"]
 
 --font-dir <FONT_DIR>
     Use additional font directory
@@ -61,8 +61,7 @@ Run `agg -h` to see all available options. Current options are:
     Specify line height [default: 1.4]
 
 --theme <THEME>
-    Select color theme [possible values: asciinema, dracula, monokai, solarized-dark,
-    solarized-light, custom]
+    Select color theme [default: dracula] [possible values: asciinema, dracula, github-dark, github-light, monokai, nord, solarized-dark, solarized-light]
 
 --speed <SPEED>
     Adjust playback speed [default: 1]
@@ -123,24 +122,3 @@ There are several built-in color themes you can use with `--theme` option:
 - monokai
 - solarized-dark
 - solarized-light
-
-If your asciicast file includes [theme definition](https://github.com/asciinema/asciinema/blob/develop/doc/asciicast-v2.md#theme)
-then it's used automatically unless `--theme` option is explicitly specified.
-
-A custom, ad-hoc theme can be used with `--theme` option by passing a series of
-comma-separated hex triplets defining terminal background color, default text
-color and a color palette:
-
-```text
---theme bbbbbb,ffffff,000000,111111,222222,333333,444444,555555,666666,777777
-```
-
-The above sets terminal background color to `bbbbbb`, default text color to `ffffff`,
-and uses remaining 8 colors as [SGR color palette](https://en.wikipedia.org/wiki/ANSI_escape_code#Colors).
-
-Additional bright color variants can be specified by adding 8 more hex triplets
-at the end. For example, the equivalent of the built-in Monokai theme is:
-
-```text
---theme 272822,f8f8f2,272822,f92672,a6e22e,f4bf75,66d9ef,ae81ff,a1efe4,f8f8f2,75715e,f92672,a6e22e,f4bf75,66d9ef,ae81ff,a1efe4,f9f8f5
-```

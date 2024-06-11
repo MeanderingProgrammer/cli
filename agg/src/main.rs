@@ -25,7 +25,7 @@ struct Cli {
     renderer: RendererName,
 
     /// Specify font families
-    #[clap(long, default_values_t = [String::from("JetBrains Mono"), String::from("Fira Code"), String::from("SF Mono")])]
+    #[clap(long, default_values_t = [String::from("Monaspace Neon"), String::from("Symbols Nerd Font"), String::from("JetBrainsMono Nerd Font")])]
     font: Vec<String>,
 
     /// Use additional font directory

@@ -1,14 +1,22 @@
+use avt::Pen;
 use fontdue::{Font, FontSettings, Metrics};
 use resvg::usvg::fontdb::{Database, Family, Query, Stretch, Style, Weight, ID};
 use std::collections::HashMap;
 
 #[derive(Debug, Default, Clone, Hash, PartialEq, Eq)]
 pub struct Variant {
-    pub bold: bool,
-    pub italic: bool,
+    bold: bool,
+    italic: bool,
 }
 
 impl Variant {
+    pub fn from_pen(pen: &Pen) -> Self {
+        Self {
+            bold: pen.is_bold(),
+            italic: pen.is_italic(),
+        }
+    }
+
     fn weight(&self) -> Weight {
         if self.bold {
             Weight::BOLD

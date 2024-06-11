@@ -1,11 +1,9 @@
 use crate::fonts::{CachingFontDb, Variant};
-use crate::renderer::{color_to_rgb, text_attrs, Renderer, Settings};
+use crate::renderer::{text_attrs, Renderer, Settings};
 use crate::theme::Theme;
 use crate::vt::Frame;
-use avt::Color;
 use imgref::ImgVec;
 use rgb::RGBA8;
-use std::collections::HashMap;
 
 #[derive(Debug)]
 pub struct FontRenderer {
@@ -49,16 +47,20 @@ impl FontRenderer {
             font_db: settings.font_db,
         }
     }
-}
 
-fn mix_colors(fg: RGBA8, bg: RGBA8, ratio: u8) -> RGBA8 {
-    let ratio = ratio as u16;
-    RGBA8::new(
-        ((bg.r as u16) * (255 - ratio) / 255) as u8 + ((fg.r as u16) * ratio / 255) as u8,
-        ((bg.g as u16) * (255 - ratio) / 255) as u8 + ((fg.g as u16) * ratio / 255) as u8,
-        ((bg.b as u16) * (255 - ratio) / 255) as u8 + ((fg.b as u16) * ratio / 255) as u8,
-        255,
-    )
+    fn y_bounds(&self, row: usize) -> (usize, usize) {
+        let margin = self.row_height / 2.0;
+        let top = (margin + row as f64 * self.row_height).round() as usize;
+        let bottom = (margin + (row + 1) as f64 * self.row_height).round() as usize;
+        (top, bottom)
+    }
+
+    fn x_bounds(&self, col: usize) -> (usize, usize) {
+        let margin = self.col_width;
+        let left = (margin + col as f64 * self.col_width).round() as usize;
+        let right = (margin + (col + 1) as f64 * self.col_width).round() as usize;
+        (left, right)
+    }
 }
 
 impl Renderer for FontRenderer {
@@ -66,66 +68,41 @@ impl Renderer for FontRenderer {
         let initial_color = self.theme.background.alpha(255);
         let mut buf: Vec<RGBA8> = vec![initial_color; self.pixel_width * self.pixel_height];
 
-        let margin_l = self.col_width;
-        let margin_t = (self.row_height / 2.0).round() as usize;
-
-        log::info!("MARGIN LEFT: {} / TOP: {}", margin_l, margin_t);
-
-        let mut foregrounds: HashMap<usize, RGBA8> = HashMap::default();
-
+        // Handle the backgrounds & underlines first, ignore foreground characters
         for (row, chars) in frame.lines.iter().enumerate() {
-            let y_t = margin_t + (row as f64 * self.row_height).round() as usize;
-            let y_b = margin_t + ((row + 1) as f64 * self.row_height).round() as usize;
-            log::info!("ROW: {} TOP: {} / BOTTOM: {}", row, y_t, y_b);
-
+            let (y_t, y_b) = self.y_bounds(row);
             for (col, (_, pen)) in chars.iter().enumerate() {
-                let x_l = (margin_l + col as f64 * self.col_width).round() as usize;
-                let x_r = (margin_l + (col + 1) as f64 * self.col_width).round() as usize;
-
+                let (x_l, x_r) = self.x_bounds(col);
                 let attrs = text_attrs(pen, &frame.cursor, col, row, &self.theme);
 
-                let fg_color = attrs
-                    .foreground
-                    .unwrap_or(Color::RGB(self.theme.foreground));
-                let fg = color_to_rgb(&fg_color, &self.theme).alpha(255);
-
-                if let Some(bg_color) = attrs.background {
-                    let bg = color_to_rgb(&bg_color, &self.theme);
+                if let Some(bg) = attrs.background {
                     for y in y_t..y_b {
                         for x in x_l..x_r {
-                            let idx = y * self.pixel_width + x;
-                            buf[idx] = bg.alpha(255);
-                            foregrounds.insert(idx, fg);
+                            buf[y * self.pixel_width + x] = bg.alpha(255);
                         }
                     }
                 }
 
+                let fg = attrs.foreground.alpha(255);
                 if pen.is_underline() {
-                    let y = margin_t
-                        + (row as f64 * self.row_height + self.font_size as f64 * 1.2).round()
-                            as usize;
+                    let y = y_t + (self.font_size as f64 * 1.2).round() as usize;
                     for x in x_l..x_r {
-                        let idx = y * self.pixel_width + x;
-                        buf[idx] = fg;
+                        buf[y * self.pixel_width + x] = fg;
                     }
                 }
             }
+        }
 
+        // Now handle the characters
+        for (row, chars) in frame.lines.iter().enumerate() {
+            let (y_t, y_b) = self.y_bounds(row);
             for (col, (ch, pen)) in chars.iter().enumerate() {
-                let x_l = (margin_l + col as f64 * self.col_width).round() as usize;
-
+                let (x_l, x_r) = self.x_bounds(col);
                 if ch == &' ' {
                     continue;
                 }
-
                 let glyph = self.font_db.get_glyph_cache(
-                    (
-                        *ch,
-                        Variant {
-                            bold: pen.is_bold(),
-                            italic: pen.is_italic(),
-                        },
-                    ),
+                    (*ch, Variant::from_pen(pen)),
                     self.font_size as f32,
                     &self.font_families,
                 );
@@ -142,14 +119,60 @@ impl Renderer for FontRenderer {
                     if y < 0 || y >= self.pixel_height as i32 {
                         continue;
                     }
+                    let y = y as usize;
                     for bmap_x in 0..metrics.width {
                         let x = x_offset + bmap_x as i32;
                         if x < 0 || x >= self.pixel_width as i32 {
                             continue;
                         }
-                        // FIX KEY ERROR
-                        let idx = (y as usize) * self.pixel_width + (x as usize);
-                        let fg = foregrounds[&idx];
+                        let x = x as usize;
+
+                        let mut pixel_row = row;
+                        let mut pixel_col = col;
+                        // Character reaches into previous row
+                        if y < y_t {
+                            if row == 0 {
+                                continue;
+                            } else {
+                                pixel_row -= 1;
+                            }
+                        }
+                        // Character reaches into next row
+                        if y >= y_b {
+                            if row >= frame.lines.len() - 1 {
+                                continue;
+                            } else {
+                                pixel_row += 1;
+                            }
+                        }
+                        // Character reaches into previous column
+                        if x < x_l {
+                            if col == 0 {
+                                continue;
+                            } else {
+                                pixel_col -= 1;
+                            }
+                        }
+                        // Character reaches into next column
+                        if x >= x_r {
+                            if col >= chars.len() - 1 {
+                                continue;
+                            } else {
+                                pixel_col += 1;
+                            }
+                        }
+
+                        let fg = text_attrs(
+                            &frame.lines[pixel_row][pixel_col].1,
+                            &frame.cursor,
+                            pixel_col,
+                            pixel_row,
+                            &self.theme,
+                        )
+                        .foreground
+                        .alpha(255);
+
+                        let idx = y * self.pixel_width + x;
                         let bg = buf[idx];
                         let v = bitmap[bmap_y * metrics.width + bmap_x];
                         buf[idx] = mix_colors(fg, bg, v);
@@ -164,4 +187,14 @@ impl Renderer for FontRenderer {
     fn pixel_size(&self) -> (usize, usize) {
         (self.pixel_width, self.pixel_height)
     }
+}
+
+fn mix_colors(fg: RGBA8, bg: RGBA8, ratio: u8) -> RGBA8 {
+    let ratio = ratio as u16;
+    RGBA8::new(
+        ((bg.r as u16) * (255 - ratio) / 255) as u8 + ((fg.r as u16) * ratio / 255) as u8,
+        ((bg.g as u16) * (255 - ratio) / 255) as u8 + ((fg.g as u16) * ratio / 255) as u8,
+        ((bg.b as u16) * (255 - ratio) / 255) as u8 + ((fg.b as u16) * ratio / 255) as u8,
+        255,
+    )
 }

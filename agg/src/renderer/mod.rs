@@ -43,8 +43,8 @@ pub struct Settings {
 
 #[derive(Debug)]
 struct TextAttrs {
-    foreground: Option<Color>,
-    background: Option<Color>,
+    foreground: RGB8,
+    background: Option<RGB8>,
 }
 
 fn text_attrs(
@@ -82,8 +82,8 @@ fn text_attrs(
     }
 
     TextAttrs {
-        foreground,
-        background,
+        foreground: color_to_rgb(&foreground.unwrap_or(Color::RGB(theme.foreground)), theme),
+        background: background.as_ref().map(|c| color_to_rgb(c, theme)),
     }
 }
 
