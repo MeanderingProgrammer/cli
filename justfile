@@ -1,8 +1,4 @@
-install:
-  just install-agg
-  just install-weather
-  just install-als
-  just install-update-asdf
+install: install-agg install-weather install-als install-update-asdf
 
 install-agg:
   cargo install --path agg
@@ -19,3 +15,7 @@ install-als:
 install-update-asdf:
   cd update-asdf && go install
   asdf reshim golang
+
+demo-agg: install-agg
+  rm -f agg/demo.gif
+  agg agg/demo.cast agg/demo.gif -vvv

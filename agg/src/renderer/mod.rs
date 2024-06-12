@@ -55,9 +55,6 @@ fn text_attrs(
     theme: &Theme,
 ) -> TextAttrs {
     let mut foreground = pen.foreground();
-    let mut background = pen.background();
-    let inverse = cursor.map_or(false, |(cx, cy)| cx == x && cy == y);
-
     if pen.is_bold() {
         if let Some(Color::Indexed(n)) = foreground {
             if n < 8 {
@@ -66,6 +63,7 @@ fn text_attrs(
         }
     }
 
+    let mut background = pen.background();
     if pen.is_blink() {
         if let Some(Color::Indexed(n)) = background {
             if n < 8 {
@@ -74,6 +72,7 @@ fn text_attrs(
         }
     }
 
+    let inverse = cursor.map_or(false, |(cx, cy)| cx == x && cy == y);
     if pen.is_inverse() ^ inverse {
         let fg = background.unwrap_or(Color::RGB(theme.background));
         let bg = foreground.unwrap_or(Color::RGB(theme.foreground));

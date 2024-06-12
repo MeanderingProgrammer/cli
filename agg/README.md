@@ -39,12 +39,6 @@ agg --theme monokai --font-size 20 --speed 2 demo.cast demo.gif
 Run `agg -h` to see all available options. Current options are:
 
 ```text
--c, --cols <COLS>
-    Override terminal width (number of columns)
-
--r, --rows <ROWS>
-    Override terminal height (number of rows)
-
 --renderer <RENDERER>
     Select frame rendering backend [default: fontdue] [possible values: fontdue, resvg]
 
@@ -68,9 +62,6 @@ Run `agg -h` to see all available options. Current options are:
 
 --fps-cap <FPS_CAP>
     Set FPS cap [default: 30]
-
---idle-time-limit <IDLE_TIME_LIMIT>
-    Limit idle time to max number of seconds [default: 5]
 
 --last-frame-duration <LAST_FRAME_DURATION>
     Set last frame duration [default: 1]

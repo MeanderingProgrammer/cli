@@ -1,6 +1,7 @@
 pub use crate::renderer::RendererName;
 pub use crate::theme::ThemeName;
 use anyhow::{bail, Ok, Result};
+use gifski::progress::ProgressBar;
 use std::fs::File;
 use std::time::Instant;
 
@@ -13,8 +14,6 @@ mod vt;
 
 #[derive(Debug)]
 pub struct Config {
-    pub cols: Option<usize>,
-    pub rows: Option<usize>,
     pub renderer: RendererName,
     pub fonts: Vec<String>,
     pub font_dirs: Vec<String>,
@@ -23,22 +22,16 @@ pub struct Config {
     pub theme: ThemeName,
     pub speed: f64,
     pub fps_cap: u8,
-    pub idle_time_limit: f64,
     pub last_frame_duration: f64,
 }
 
 pub fn run(input: File, output: File, config: Config) -> Result<()> {
     let (header, events) = asciicast::open(input)?;
 
-    let terminal_size = (
-        config.cols.unwrap_or(header.terminal_size.0),
-        config.rows.unwrap_or(header.terminal_size.1),
-    );
+    let terminal_size = header.terminal_size;
     log::info!("terminal size: {}x{}", terminal_size.0, terminal_size.1);
 
-    let stdout = events::stdout(events);
-    let stdout = std::iter::once(events::Event::default()).chain(stdout);
-    let stdout = events::limit_idle(stdout, config.idle_time_limit);
+    let stdout = std::iter::once(events::Event::default()).chain(events);
     let stdout = events::accelerate(stdout, config.speed);
     let stdout = events::batch(stdout, config.fps_cap);
     let stdout: Vec<events::Event> = stdout.collect();
@@ -61,13 +54,12 @@ pub fn run(input: File, output: File, config: Config) -> Result<()> {
         font_families,
         font_size: config.font_size,
         line_height: config.line_height,
-        theme: config.theme.get_theme()?,
+        theme: config.theme.try_into()?,
     };
 
     let mut renderer = config.renderer.get_renderer(settings);
 
     let (width, height) = renderer.pixel_size();
-
     log::info!("gif dimensions: {}x{}", width, height);
 
     let settings = gifski::Settings {
@@ -83,7 +75,7 @@ pub fn run(input: File, output: File, config: Config) -> Result<()> {
 
     std::thread::scope(|s| {
         let writer_handle = s.spawn(move || {
-            let mut pr = gifski::progress::ProgressBar::new(count);
+            let mut pr = ProgressBar::new(count);
             let result = writer.write(output, &mut pr);
             pr.finish();
             println!();

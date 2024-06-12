@@ -74,7 +74,6 @@ impl Renderer for FontRenderer {
             for (col, (_, pen)) in chars.iter().enumerate() {
                 let (x_l, x_r) = self.x_bounds(col);
                 let attrs = text_attrs(pen, &frame.cursor, col, row, &self.theme);
-
                 if let Some(bg) = attrs.background {
                     for y in y_t..y_b {
                         for x in x_l..x_r {
@@ -82,9 +81,8 @@ impl Renderer for FontRenderer {
                         }
                     }
                 }
-
-                let fg = attrs.foreground.alpha(255);
                 if pen.is_underline() {
+                    let fg = attrs.foreground.alpha(255);
                     let y = y_t + (self.font_size as f64 * 1.2).round() as usize;
                     for x in x_l..x_r {
                         buf[y * self.pixel_width + x] = fg;
@@ -120,62 +118,31 @@ impl Renderer for FontRenderer {
                         continue;
                     }
                     let y = y as usize;
+                    let pixel_row = pixel_position(row, frame.lines.len() - 1, y, y_t, y_b);
+
                     for bmap_x in 0..metrics.width {
                         let x = x_offset + bmap_x as i32;
                         if x < 0 || x >= self.pixel_width as i32 {
                             continue;
                         }
                         let x = x as usize;
-
-                        let mut pixel_row = row;
-                        let mut pixel_col = col;
-                        // Character reaches into previous row
-                        if y < y_t {
-                            if row == 0 {
-                                continue;
-                            } else {
-                                pixel_row -= 1;
-                            }
-                        }
-                        // Character reaches into next row
-                        if y >= y_b {
-                            if row >= frame.lines.len() - 1 {
-                                continue;
-                            } else {
-                                pixel_row += 1;
-                            }
-                        }
-                        // Character reaches into previous column
-                        if x < x_l {
-                            if col == 0 {
-                                continue;
-                            } else {
-                                pixel_col -= 1;
-                            }
-                        }
-                        // Character reaches into next column
-                        if x >= x_r {
-                            if col >= chars.len() - 1 {
-                                continue;
-                            } else {
-                                pixel_col += 1;
-                            }
-                        }
-
-                        let fg = text_attrs(
-                            &frame.lines[pixel_row][pixel_col].1,
-                            &frame.cursor,
-                            pixel_col,
-                            pixel_row,
-                            &self.theme,
-                        )
-                        .foreground
-                        .alpha(255);
+                        let pixel_col = pixel_position(col, chars.len() - 1, x, x_l, x_r);
 
                         let idx = y * self.pixel_width + x;
-                        let bg = buf[idx];
-                        let v = bitmap[bmap_y * metrics.width + bmap_x];
-                        buf[idx] = mix_colors(fg, bg, v);
+                        if let (Some(r), Some(c)) = (pixel_row, pixel_col) {
+                            let pixel_pen = frame.lines[r][c].1;
+                            let attrs = text_attrs(&pixel_pen, &frame.cursor, c, r, &self.theme);
+
+                            let fg = attrs.foreground.alpha(255);
+                            let bg = buf[idx];
+                            let ratio = bitmap[bmap_y * metrics.width + bmap_x] as u16;
+                            buf[idx] = RGBA8::new(
+                                mix_colors(fg.r, bg.r, ratio),
+                                mix_colors(fg.g, bg.g, ratio),
+                                mix_colors(fg.b, bg.b, ratio),
+                                255,
+                            )
+                        }
                     }
                 }
             }
@@ -189,12 +156,24 @@ impl Renderer for FontRenderer {
     }
 }
 
-fn mix_colors(fg: RGBA8, bg: RGBA8, ratio: u8) -> RGBA8 {
-    let ratio = ratio as u16;
-    RGBA8::new(
-        ((bg.r as u16) * (255 - ratio) / 255) as u8 + ((fg.r as u16) * ratio / 255) as u8,
-        ((bg.g as u16) * (255 - ratio) / 255) as u8 + ((fg.g as u16) * ratio / 255) as u8,
-        ((bg.b as u16) * (255 - ratio) / 255) as u8 + ((fg.b as u16) * ratio / 255) as u8,
-        255,
-    )
+fn pixel_position(c: usize, c_max: usize, p: usize, p_min: usize, p_max: usize) -> Option<usize> {
+    if p < p_min {
+        if c > 0 {
+            Some(c - 1)
+        } else {
+            None
+        }
+    } else if p >= p_max {
+        if c < c_max {
+            Some(c + 1)
+        } else {
+            None
+        }
+    } else {
+        Some(c)
+    }
+}
+
+fn mix_colors(fg: u8, bg: u8, ratio: u16) -> u8 {
+    ((bg as u16) * (255 - ratio) / 255) as u8 + ((fg as u16) * ratio / 255) as u8
 }

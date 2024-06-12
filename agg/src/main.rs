@@ -12,14 +12,6 @@ struct Cli {
     /// GIF path/filename
     output_filename: String,
 
-    /// Override terminal width (number of columns)
-    #[clap(short, long)]
-    cols: Option<usize>,
-
-    /// Override terminal height (number of rows)
-    #[clap(short, long)]
-    rows: Option<usize>,
-
     /// Select frame rendering backend
     #[clap(long, value_enum, default_value_t = RendererName::default())]
     renderer: RendererName,
@@ -52,10 +44,6 @@ struct Cli {
     #[clap(long, default_value_t = 30)]
     fps_cap: u8,
 
-    /// Limit idle time to max number of seconds
-    #[clap(long, default_value_t = 5.0)]
-    idle_time_limit: f64,
-
     /// Set last frame duration
     #[clap(long, default_value_t = 1.0)]
     last_frame_duration: f64,
@@ -82,8 +70,6 @@ fn main() -> Result<()> {
     let input = File::open(&cli.input_filename)?;
     let output = File::create(&cli.output_filename)?;
     let config = Config {
-        cols: cli.cols,
-        rows: cli.rows,
         renderer: cli.renderer,
         fonts: cli.font,
         font_dirs: cli.font_dir,
@@ -92,7 +78,6 @@ fn main() -> Result<()> {
         theme: cli.theme,
         speed: cli.speed,
         fps_cap: cli.fps_cap,
-        idle_time_limit: cli.idle_time_limit,
         last_frame_duration: cli.last_frame_duration,
     };
     agg::run(input, output, config)
