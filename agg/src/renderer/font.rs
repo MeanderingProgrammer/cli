@@ -2,8 +2,8 @@ use crate::fonts::{CachingFontDb, Variant};
 use crate::renderer::{text_attrs, Renderer, Settings};
 use crate::theme::Theme;
 use crate::vt::Frame;
+use avt::rgb::RGBA8;
 use imgref::ImgVec;
-use rgb::RGBA8;
 
 #[derive(Debug)]
 pub struct FontRenderer {
@@ -100,7 +100,7 @@ impl Renderer for FontRenderer {
                     continue;
                 }
                 let glyph = self.font_db.get_glyph_cache(
-                    (*ch, Variant::from_pen(pen)),
+                    (*ch, pen.into()),
                     self.font_size as f32,
                     &self.font_families,
                 );
@@ -130,8 +130,8 @@ impl Renderer for FontRenderer {
 
                         let idx = y * self.pixel_width + x;
                         if let (Some(r), Some(c)) = (pixel_row, pixel_col) {
-                            let pixel_pen = frame.lines[r][c].1;
-                            let attrs = text_attrs(&pixel_pen, &frame.cursor, c, r, &self.theme);
+                            let pixel_pen = &frame.lines[r][c].1;
+                            let attrs = text_attrs(pixel_pen, &frame.cursor, c, r, &self.theme);
 
                             let fg = attrs.foreground.alpha(255);
                             let bg = buf[idx];

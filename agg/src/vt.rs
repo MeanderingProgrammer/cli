@@ -9,23 +9,20 @@ pub struct Frame {
 
 pub fn frames(
     events: impl Iterator<Item = Event>,
-    terminal_size: (usize, usize),
+    size: (usize, usize),
 ) -> impl Iterator<Item = (f64, Frame)> {
-    let mut vt = Vt::builder()
-        .size(terminal_size.0, terminal_size.1)
-        .scrollback_limit(0)
-        .build();
+    let mut vt = Vt::new(size);
 
     let mut prev_cursor = None;
     events.filter_map(move |Event { time, data }| {
-        let (changed_lines, _) = vt.feed_str(&data);
-        let cursor: Option<(usize, usize)> = vt.cursor().into();
+        let changed_lines = vt.feed_str(&data);
+        let cursor = vt.cursor();
         if !changed_lines.is_empty() || cursor != prev_cursor {
             prev_cursor = cursor;
             let lines = vt
                 .view()
                 .iter()
-                .map(|line| line.cells().collect())
+                .map(|line| line.cells().map(|cell| (cell.0, cell.1)).collect())
                 .collect();
             Some((time, Frame { lines, cursor }))
         } else {

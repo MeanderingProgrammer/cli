@@ -2,6 +2,8 @@
 
 Heavily modified fork of the [original](https://github.com/asciinema/agg).
 
+Also re-implements underlying [avt library](https://github.com/asciinema/avt).
+
 agg is a command-line tool for generating animated GIF files from
 [asciicast v2 files](https://github.com/asciinema/asciinema/blob/master/doc/asciicast-v2.md)
 produced by [asciinema terminal recorder](https://github.com/asciinema/asciinema).

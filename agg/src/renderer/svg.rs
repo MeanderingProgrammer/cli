@@ -1,11 +1,11 @@
 use crate::renderer::{text_attrs, Renderer, Settings};
 use crate::theme::Theme;
 use crate::vt::Frame;
+use avt::rgb::{FromSlice, RGB8, RGBA8};
 use avt::Pen;
 use imgref::ImgVec;
 use resvg::tiny_skia::{Pixmap, Transform};
 use resvg::usvg::{Options, Tree};
-use rgb::{FromSlice, RGB8, RGBA8};
 use std::fmt::Write as _;
 use std::sync::Arc;
 
@@ -127,7 +127,7 @@ impl<'a> SvgRenderer<'a> {
         for (row, line) in frame.lines.iter().enumerate() {
             let y = 100.0 * (row as f64) / (rows as f64 + 1.0);
 
-            for (col, (_ch, pen)) in line.iter().enumerate() {
+            for (col, (_, pen)) in line.iter().enumerate() {
                 let attrs = text_attrs(pen, &frame.cursor, col, row, &self.theme);
 
                 if attrs.background.is_none() {

@@ -1,6 +1,6 @@
 use anyhow::{bail, Error, Result};
+use avt::rgb::RGB8;
 use clap::ValueEnum;
-use rgb::RGB8;
 use std::str::FromStr;
 
 #[derive(Debug, Clone, Default, ValueEnum)]

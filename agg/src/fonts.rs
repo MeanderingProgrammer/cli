@@ -5,31 +5,23 @@ use std::collections::HashMap;
 
 #[derive(Debug, Default, Clone, Hash, PartialEq, Eq)]
 pub struct Variant {
-    bold: bool,
-    italic: bool,
+    weight: Weight,
+    style: Style,
 }
 
-impl Variant {
-    pub fn from_pen(pen: &Pen) -> Self {
+impl From<&Pen> for Variant {
+    fn from(value: &Pen) -> Self {
         Self {
-            bold: pen.is_bold(),
-            italic: pen.is_italic(),
-        }
-    }
-
-    fn weight(&self) -> Weight {
-        if self.bold {
-            Weight::BOLD
-        } else {
-            Weight::NORMAL
-        }
-    }
-
-    fn style(&self) -> Style {
-        if self.italic {
-            Style::Italic
-        } else {
-            Style::Normal
+            weight: if value.is_bold() {
+                Weight::BOLD
+            } else {
+                Weight::NORMAL
+            },
+            style: if value.is_italic() {
+                Style::Italic
+            } else {
+                Style::Normal
+            },
         }
     }
 }
@@ -103,7 +95,7 @@ impl CachingFontDb {
             let rasterized = match self.rasterize_glyph(key.clone(), font_size, font_families) {
                 Some(glyph) => Some(glyph),
                 None => {
-                    if key.1.bold || key.1.italic {
+                    if key.1 != Variant::default() {
                         self.rasterize_glyph((key.0, Variant::default()), font_size, font_families)
                     } else {
                         None
@@ -145,20 +137,17 @@ impl CachingFontDb {
     }
 
     fn get_id(&self, families: &[&str], variant: &Variant) -> Option<ID> {
-        let weight = variant.weight();
-        let style = variant.style();
         log::debug!(
-            "looking up font for families={:?}, weight={}, style={:?}",
+            "looking up font for families={:?}, variant={:?}",
             families,
-            weight.0,
-            style
+            variant
         );
         let families: Vec<Family> = families.iter().map(|name| Family::Name(name)).collect();
         let query = Query {
             families: &families,
+            weight: variant.weight,
+            style: variant.style,
             stretch: Stretch::Normal,
-            weight,
-            style,
         };
         self.db.query(&query)
     }

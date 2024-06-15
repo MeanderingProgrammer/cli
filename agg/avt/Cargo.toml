@@ -1,0 +1,9 @@
+[package]
+name = "avt"
+version = "0.0.2"
+edition = "2021"
+description = "asciinema virtual terminal"
+
+[dependencies]
+rgb = "0.8.37"
+unicode-width = "0.1.13"

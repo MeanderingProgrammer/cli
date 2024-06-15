@@ -1,10 +1,10 @@
 use crate::fonts::CachingFontDb;
 use crate::theme::Theme;
 use crate::vt::Frame;
+use avt::rgb::{RGB8, RGBA8};
 use avt::{Color, Pen};
 use clap::ValueEnum;
 use imgref::ImgVec;
-use rgb::{RGB8, RGBA8};
 
 mod font;
 mod svg;
@@ -54,7 +54,7 @@ fn text_attrs(
     y: usize,
     theme: &Theme,
 ) -> TextAttrs {
-    let mut foreground = pen.foreground();
+    let mut foreground = pen.foreground.clone();
     if pen.is_bold() {
         if let Some(Color::Indexed(n)) = foreground {
             if n < 8 {
@@ -63,7 +63,7 @@ fn text_attrs(
         }
     }
 
-    let mut background = pen.background();
+    let mut background = pen.background.clone();
     if pen.is_blink() {
         if let Some(Color::Indexed(n)) = background {
             if n < 8 {
