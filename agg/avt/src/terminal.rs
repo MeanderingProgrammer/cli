@@ -357,6 +357,7 @@ impl Terminal {
         }
     }
 
+    // https://invisible-island.net/xterm/ctlseqs/ctlseqs.html#h3-Functions-using-CSI-_-ordered-by-the-final-character_s_
     pub fn csi_dispatch(&mut self, params: &Params, intermediates: &[char], input: char) {
         match (input, intermediates) {
             ('@', []) => {
@@ -736,6 +737,7 @@ impl Terminal {
         }
     }
 
+    // https://invisible-island.net/xterm/ctlseqs/ctlseqs.html#h3-Controls-beginning-with-ESC
     pub fn esc_dispatch(&mut self, intermediates: &[char], input: char) {
         match (input, intermediates) {
             ('@'..='_', []) => self.execute(((input as u8) + 0x40) as char),
