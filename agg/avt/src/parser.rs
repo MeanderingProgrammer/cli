@@ -1,8 +1,24 @@
-use crate::charset::Charset;
 use crate::terminal::Terminal;
 
+#[derive(Debug)]
+enum Action {
+    Clear,
+    Collect,
+    CsiDispatch,
+    EscDispatch,
+    Execute,
+    Param,
+    Print,
+    Hook,
+    Put,
+    Unhook,
+    OscStart,
+    OscPut,
+    OscEnd,
+}
+
 #[derive(Debug, Default)]
-pub enum State {
+enum State {
     #[default]
     Ground,
     Escape,
@@ -18,6 +34,29 @@ pub enum State {
     DcsIgnore,
     OscString,
     SosPmApcString,
+}
+
+impl State {
+    fn enter_action(&self) -> Option<Action> {
+        match self {
+            State::Escape => Some(Action::Clear),
+            State::CsiEntry => Some(Action::Clear),
+            State::DcsEntry => Some(Action::Clear),
+            State::OscString => Some(Action::OscStart),
+            State::DcsPassthrough => Some(Action::Hook),
+            // No constant entry events for all other states
+            _ => None,
+        }
+    }
+
+    fn exit_action(&self) -> Option<Action> {
+        match self {
+            Self::OscString => Some(Action::OscEnd),
+            Self::DcsPassthrough => Some(Action::Unhook),
+            // No constant exit events for all other states
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -51,13 +90,11 @@ impl Default for Params {
 }
 
 #[derive(Debug, Default)]
-pub struct Intermediates(Vec<char>);
-
-#[derive(Debug, Default)]
 pub struct Parser {
     state: State,
     params: Params,
-    intermediates: Intermediates,
+    intermediates: [char; 2],
+    intermediate_idx: usize,
 }
 
 impl Parser {
@@ -67,422 +104,310 @@ impl Parser {
         }
     }
 
+    fn feed(&mut self, input: char, terminal: &mut Terminal) {
+        let (state, action) = self.get_state_change(input);
+        if state.is_some() {
+            self.perform_action(input, terminal, self.state.exit_action());
+        }
+        self.perform_action(input, terminal, action);
+        if let Some(state) = state {
+            self.perform_action(input, terminal, state.enter_action());
+            self.state = state;
+        }
+    }
+
+    fn intermediates(&self) -> &[char] {
+        &self.intermediates[..self.intermediate_idx]
+    }
+
     // https://www.vt100.net/emu/dec_ansi_parser
-    pub fn feed(&mut self, input: char, terminal: &mut Terminal) {
+    // https://github.com/haberman/vtparse/blob/master/vtparse_tables.rb
+    fn get_state_change(&self, input: char) -> (Option<State>, Option<Action>) {
         let clamped_input = if input >= '\u{a0}' { '\u{41}' } else { input };
         match (&self.state, clamped_input) {
-            // anywhere -> ground w/ execute
+            // |=================================|
+            // | anywhere transitions            |
+            // |=================================|
             (_, '\u{18}')
             | (_, '\u{1a}')
             | (_, '\u{80}'..='\u{8f}')
             | (_, '\u{91}'..='\u{97}')
             | (_, '\u{99}')
-            | (_, '\u{9a}') => {
-                self.enter(State::Ground);
-                self.execute(terminal, input);
-            }
+            | (_, '\u{9a}') => (Some(State::Ground), Some(Action::Execute)),
+            (_, '\u{9c}') => (Some(State::Ground), None),
+            (_, '\u{1b}') => (Some(State::Escape), None),
+            (_, '\u{98}') | (_, '\u{9e}') | (_, '\u{9f}') => (Some(State::SosPmApcString), None),
+            (_, '\u{90}') => (Some(State::DcsEntry), None),
+            (_, '\u{9d}') => (Some(State::OscString), None),
+            (_, '\u{9b}') => (Some(State::CsiEntry), None),
 
-            // anywhere -> ground
-            // should run osc end for osc string, currently unhandled
-            // should run unhook for dcs passthrough, currently unhandled
-            (_, '\u{9c}') => self.enter(State::Ground),
+            // |=================================|
+            // | ground events                   |
+            // |=================================|
+            (State::Ground, '\u{00}'..='\u{17}')
+            | (State::Ground, '\u{19}')
+            | (State::Ground, '\u{1c}'..='\u{1f}') => (None, Some(Action::Execute)),
+            (State::Ground, '\u{20}'..='\u{7f}') => (None, Some(Action::Print)),
 
-            // ground event / execute
-            (State::Ground, '\u{00}'..='\u{17}') => self.execute(terminal, input),
-            (State::Ground, '\u{19}') => self.execute(terminal, input),
-            (State::Ground, '\u{1c}'..='\u{1f}') => self.execute(terminal, input),
+            // |=================================|
+            // | escape events                   |
+            // |=================================|
+            (State::Escape, '\u{00}'..='\u{17}')
+            | (State::Escape, '\u{19}')
+            | (State::Escape, '\u{1c}'..='\u{1f}') => (None, Some(Action::Execute)),
+            (State::Escape, '\u{7f}') => (None, None),
 
-            // ground event / print
-            (State::Ground, '\u{20}'..='\u{7f}') => terminal.print(input),
-
-            // anywhere -> escape
-            (_, '\u{1b}') => self.enter(State::Escape),
-
-            // escape event / execute
-            (State::Escape, '\u{00}'..='\u{17}') => self.execute(terminal, input),
-            (State::Escape, '\u{19}') => self.execute(terminal, input),
-            (State::Escape, '\u{1c}'..='\u{1f}') => self.execute(terminal, input),
-
-            // escape event / ignore
-            (State::Escape, '\u{7f}') => (),
-
-            // escape -> escape intermediate w/ collect
+            // |=================================|
+            // | escape transitions              |
+            // |=================================|
             (State::Escape, '\u{20}'..='\u{2f}') => {
-                self.enter(State::EscapeIntermediate);
-                self.collect(input);
+                (Some(State::EscapeIntermediate), Some(Action::Collect))
             }
-
-            // escape -> ground w/ esc dispatch
             (State::Escape, '\u{30}'..='\u{4f}')
             | (State::Escape, '\u{51}'..='\u{57}')
             | (State::Escape, '\u{59}')
             | (State::Escape, '\u{5a}')
             | (State::Escape, '\u{5c}')
             | (State::Escape, '\u{60}'..='\u{7e}') => {
-                self.enter(State::Ground);
-                self.esc_dispatch(terminal, input);
+                (Some(State::Ground), Some(Action::EscDispatch))
             }
-
-            // escape output transitions
-            (State::Escape, '\u{5b}') => self.enter(State::CsiEntry),
-            (State::Escape, '\u{5d}') => self.enter(State::OscString),
-            (State::Escape, '\u{50}') => self.enter(State::DcsEntry),
+            (State::Escape, '\u{5b}') => (Some(State::CsiEntry), None),
+            (State::Escape, '\u{5d}') => (Some(State::OscString), None),
+            (State::Escape, '\u{50}') => (Some(State::DcsEntry), None),
             (State::Escape, '\u{58}') | (State::Escape, '\u{5e}') | (State::Escape, '\u{5f}') => {
-                self.enter(State::SosPmApcString)
+                (Some(State::SosPmApcString), None)
             }
 
-            // escape intermediate event -> execute
-            (State::EscapeIntermediate, '\u{00}'..='\u{17}') => self.execute(terminal, input),
-            (State::EscapeIntermediate, '\u{19}') => self.execute(terminal, input),
-            (State::EscapeIntermediate, '\u{1c}'..='\u{1f}') => self.execute(terminal, input),
+            // |=================================|
+            // | escape intermediate events      |
+            // |=================================|
+            (State::EscapeIntermediate, '\u{00}'..='\u{17}')
+            | (State::EscapeIntermediate, '\u{19}')
+            | (State::EscapeIntermediate, '\u{1c}'..='\u{1f}') => (None, Some(Action::Execute)),
+            (State::EscapeIntermediate, '\u{20}'..='\u{2f}') => (None, Some(Action::Collect)),
 
-            // escape intermediate event -> collect
-            (State::EscapeIntermediate, '\u{20}'..='\u{2f}') => self.collect(input),
+            (State::EscapeIntermediate, '\u{7f}') => (None, None),
 
-            // escape intermediate event / ignore
-            (State::EscapeIntermediate, '\u{7f}') => (),
-
-            // escape intermediate -> ground w/ esc dispatch
+            // |=================================|
+            // | escape intermediate transitions |
+            // |=================================|
             (State::EscapeIntermediate, '\u{30}'..='\u{7e}') => {
-                self.enter(State::Ground);
-                self.esc_dispatch(terminal, input);
+                (Some(State::Ground), Some(Action::EscDispatch))
             }
 
-            // anywhere -> csi entry
-            (_, '\u{9b}') => self.enter(State::CsiEntry),
+            // |=================================|
+            // | csi entry events                |
+            // |=================================|
+            (State::CsiEntry, '\u{00}'..='\u{17}')
+            | (State::CsiEntry, '\u{19}')
+            | (State::CsiEntry, '\u{1c}'..='\u{1f}') => (None, Some(Action::Execute)),
+            (State::CsiEntry, '\u{7f}') => (None, None),
 
-            // csi entry event / execute
-            (State::CsiEntry, '\u{00}'..='\u{17}') => self.execute(terminal, input),
-            (State::CsiEntry, '\u{19}') => self.execute(terminal, input),
-            (State::CsiEntry, '\u{1c}'..='\u{1f}') => self.execute(terminal, input),
-
-            // csi entry event / ignore
-            (State::CsiEntry, '\u{7f}') => (),
-
-            // csi entry -> csi param w/ param
-            (State::CsiEntry, '\u{30}'..='\u{39}') | (State::CsiEntry, '\u{3b}') => {
-                self.enter(State::CsiParam);
-                self.param(input);
-            }
-
-            // csi entry -> csi param w/ collect
-            (State::CsiEntry, '\u{3c}'..='\u{3f}') => {
-                self.enter(State::CsiParam);
-                self.collect(input);
-            }
-
-            // csi entry -> csi ignore
-            (State::CsiEntry, '\u{3a}') => self.enter(State::CsiIgnore),
-
-            // csi entry -> csi intermediate w/ collect
+            // |=================================|
+            // | csi entry transitions           |
+            // |=================================|
             (State::CsiEntry, '\u{20}'..='\u{2f}') => {
-                self.enter(State::CsiIntermediate);
-                self.collect(input);
+                (Some(State::CsiIntermediate), Some(Action::Collect))
             }
-
-            // csi entry -> ground w/ csi dispatch
+            (State::CsiEntry, '\u{3a}') => (Some(State::CsiIgnore), None),
+            (State::CsiEntry, '\u{30}'..='\u{39}') | (State::CsiEntry, '\u{3b}') => {
+                (Some(State::CsiParam), Some(Action::Param))
+            }
+            (State::CsiEntry, '\u{3c}'..='\u{3f}') => {
+                (Some(State::CsiParam), Some(Action::Collect))
+            }
             (State::CsiEntry, '\u{40}'..='\u{7e}') => {
-                self.enter(State::Ground);
-                self.csi_dispatch(terminal, input);
+                (Some(State::Ground), Some(Action::CsiDispatch))
             }
 
-            // csi param event / execute
-            (State::CsiParam, '\u{00}'..='\u{17}') => self.execute(terminal, input),
-            (State::CsiParam, '\u{19}') => self.execute(terminal, input),
-            (State::CsiParam, '\u{1c}'..='\u{1f}') => self.execute(terminal, input),
+            // |=================================|
+            // | csi ignore events               |
+            // |=================================|
+            (State::CsiIgnore, '\u{00}'..='\u{17}')
+            | (State::CsiIgnore, '\u{19}')
+            | (State::CsiIgnore, '\u{1c}'..='\u{1f}') => (None, Some(Action::Execute)),
+            (State::CsiIgnore, '\u{20}'..='\u{3f}') | (State::CsiIgnore, '\u{7f}') => (None, None),
 
-            // csi param event / param
-            (State::CsiParam, '\u{30}'..='\u{39}') => self.param(input),
-            (State::CsiParam, '\u{3b}') => self.param(input),
+            // |=================================|
+            // | csi ignore transitions          |
+            // |=================================|
+            (State::CsiIgnore, '\u{40}'..='\u{7e}') => (Some(State::Ground), None),
 
-            // csi param event / ignore
-            (State::CsiParam, '\u{7f}') => (),
+            // |=================================|
+            // | csi param events                |
+            // |=================================|
+            (State::CsiParam, '\u{00}'..='\u{17}')
+            | (State::CsiParam, '\u{19}')
+            | (State::CsiParam, '\u{1c}'..='\u{1f}') => (None, Some(Action::Execute)),
+            (State::CsiParam, '\u{30}'..='\u{39}') | (State::CsiParam, '\u{3b}') => {
+                (None, Some(Action::Param))
+            }
+            (State::CsiParam, '\u{7f}') => (None, None),
 
-            // csi param -> csi ignore
-            (State::CsiParam, '\u{3a}') => self.enter(State::CsiIgnore),
-            (State::CsiParam, '\u{3c}'..='\u{3f}') => self.enter(State::CsiIgnore),
-
-            // csi param -> csi intermediate w/ collect
+            // |=================================|
+            // | csi param transitions           |
+            // |=================================|
+            (State::CsiParam, '\u{3a}') | (State::CsiParam, '\u{3c}'..='\u{3f}') => {
+                (Some(State::CsiIgnore), None)
+            }
             (State::CsiParam, '\u{20}'..='\u{2f}') => {
-                self.enter(State::CsiIntermediate);
-                self.collect(input);
+                (Some(State::CsiIntermediate), Some(Action::Collect))
             }
-
-            // csi param -> ground w/ csi dispatch
             (State::CsiParam, '\u{40}'..='\u{7e}') => {
-                self.enter(State::Ground);
-                self.csi_dispatch(terminal, input);
+                (Some(State::Ground), Some(Action::CsiDispatch))
             }
 
-            // csi ignore event / execute
-            (State::CsiIgnore, '\u{00}'..='\u{17}') => self.execute(terminal, input),
-            (State::CsiIgnore, '\u{19}') => self.execute(terminal, input),
-            (State::CsiIgnore, '\u{1c}'..='\u{1f}') => self.execute(terminal, input),
+            // |=================================|
+            // | csi intermediate events         |
+            // |=================================|
+            (State::CsiIntermediate, '\u{00}'..='\u{17}')
+            | (State::CsiIntermediate, '\u{19}')
+            | (State::CsiIntermediate, '\u{1c}'..='\u{1f}') => (None, Some(Action::Execute)),
+            (State::CsiIntermediate, '\u{20}'..='\u{2f}') => (None, Some(Action::Collect)),
+            (State::CsiIntermediate, '\u{7f}') => (None, None),
 
-            // csi ignore event / ignore
-            (State::CsiIgnore, '\u{7f}') => (),
-
-            // csi ignore -> ground
-            (State::CsiIgnore, '\u{40}'..='\u{7e}') => self.enter(State::Ground),
-
-            // csi intermediate event / execute
-            (State::CsiIntermediate, '\u{00}'..='\u{17}') => self.execute(terminal, input),
-            (State::CsiIntermediate, '\u{19}') => self.execute(terminal, input),
-            (State::CsiIntermediate, '\u{1c}'..='\u{1f}') => self.execute(terminal, input),
-
-            // csi intermediate event / collect
-            (State::CsiIntermediate, '\u{20}'..='\u{2f}') => self.collect(input),
-
-            // csi intermediate event / ignore
-            (State::CsiIntermediate, '\u{7f}') => (),
-
-            // csi intermediate -> csi ignore
-            (State::CsiIntermediate, '\u{30}'..='\u{3f}') => self.enter(State::CsiIgnore),
-
-            // csi intermediate -> ground w/ csi dispatch
+            // |=================================|
+            // | csi intermediate transitions    |
+            // |=================================|
+            (State::CsiIntermediate, '\u{30}'..='\u{3f}') => (Some(State::CsiIgnore), None),
             (State::CsiIntermediate, '\u{40}'..='\u{7e}') => {
-                self.state = State::Ground;
-                self.csi_dispatch(terminal, input);
+                (Some(State::Ground), Some(Action::CsiDispatch))
             }
 
-            // anywhere -> osc string
-            (_, '\u{9d}') => self.enter(State::OscString),
+            // |=================================|
+            // | dcs entry events                |
+            // |=================================|
+            (State::DcsEntry, '\u{00}'..='\u{17}')
+            | (State::DcsEntry, '\u{19}')
+            | (State::DcsEntry, '\u{1c}'..='\u{1f}')
+            | (State::DcsEntry, '\u{7f}') => (None, None),
 
-            // osc string event / ignore
-            (State::OscString, '\u{00}'..='\u{17}') => (),
-            (State::OscString, '\u{19}') => (),
-            (State::OscString, '\u{1c}'..='\u{1f}') => (),
-
-            // osc string event / osc put (unhandled)
-            (State::OscString, '\u{20}'..='\u{7f}') => (),
-
-            // anywhere -> dcs entry
-            (_, '\u{90}') => self.enter(State::DcsEntry),
-
-            // dcs entry event / ignore
-            (State::DcsEntry, '\u{00}'..='\u{17}') => (),
-            (State::DcsEntry, '\u{19}') => (),
-            (State::DcsEntry, '\u{1c}'..='\u{1f}') => (),
-            (State::DcsEntry, '\u{7f}') => (),
-
-            // dcs entry -> dcs param w/ param
-            (State::DcsEntry, '\u{30}'..='\u{39}') | (State::DcsEntry, '\u{3b}') => {
-                self.enter(State::DcsParam);
-                self.param(input);
-            }
-
-            // dcs entry -> dcs param w/ collect
-            (State::DcsEntry, '\u{3c}'..='\u{3f}') => {
-                self.enter(State::DcsParam);
-                self.collect(input);
-            }
-
-            // dcs entry -> dcs ignore
-            (State::DcsEntry, '\u{3a}') => self.enter(State::DcsIgnore),
-
-            // dcs entry -> dcs intermediate w/ collect
+            // |=================================|
+            // | dcs entry transitions           |
+            // |=================================|
+            (State::DcsEntry, '\u{3a}') => (Some(State::DcsIgnore), None),
             (State::DcsEntry, '\u{20}'..='\u{2f}') => {
-                self.enter(State::DcsIntermediate);
-                self.collect(input);
+                (Some(State::DcsIntermediate), Some(Action::Collect))
             }
+            (State::DcsEntry, '\u{30}'..='\u{39}') | (State::DcsEntry, '\u{3b}') => {
+                (Some(State::DcsParam), Some(Action::Param))
+            }
+            (State::DcsEntry, '\u{3c}'..='\u{3f}') => {
+                (Some(State::DcsParam), Some(Action::Collect))
+            }
+            (State::DcsEntry, '\u{40}'..='\u{7e}') => (Some(State::DcsPassthrough), None),
 
-            // dcs entry -> dcs passthrough
-            (State::DcsEntry, '\u{40}'..='\u{7e}') => self.enter(State::DcsPassthrough),
+            // |=================================|
+            // | dcs intermediate events         |
+            // |=================================|
+            (State::DcsIntermediate, '\u{00}'..='\u{17}')
+            | (State::DcsIntermediate, '\u{19}')
+            | (State::DcsIntermediate, '\u{1c}'..='\u{1f}') => (None, None),
+            (State::DcsIntermediate, '\u{20}'..='\u{2f}') => (None, Some(Action::Collect)),
+            (State::DcsIntermediate, '\u{7f}') => (None, None),
 
-            // dcs param event / ignore
-            (State::DcsParam, '\u{00}'..='\u{17}') => (),
-            (State::DcsParam, '\u{19}') => (),
-            (State::DcsParam, '\u{1c}'..='\u{1f}') => (),
+            // |=================================|
+            // | dcs intermediate transitions    |
+            // |=================================|
+            (State::DcsIntermediate, '\u{30}'..='\u{3f}') => (Some(State::DcsIgnore), None),
+            (State::DcsIntermediate, '\u{40}'..='\u{7e}') => (Some(State::DcsPassthrough), None),
 
-            // dcs param event / param
-            (State::DcsParam, '\u{30}'..='\u{39}') => self.param(input),
-            (State::DcsParam, '\u{3b}') => self.param(input),
+            // |=================================|
+            // | dcs ignore events               |
+            // |=================================|
+            (State::DcsIgnore, '\u{00}'..='\u{17}')
+            | (State::DcsIgnore, '\u{19}')
+            | (State::DcsIgnore, '\u{1c}'..='\u{1f}')
+            | (State::DcsIgnore, '\u{20}'..='\u{7f}') => (None, None),
 
-            // dcs param event / ignore
-            (State::DcsParam, '\u{7f}') => (),
+            // |=================================|
+            // | dcs param events                |
+            // |=================================|
+            (State::DcsParam, '\u{00}'..='\u{17}')
+            | (State::DcsParam, '\u{19}')
+            | (State::DcsParam, '\u{1c}'..='\u{1f}') => (None, None),
+            (State::DcsParam, '\u{30}'..='\u{39}') | (State::DcsParam, '\u{3b}') => {
+                (None, Some(Action::Param))
+            }
+            (State::DcsParam, '\u{7f}') => (None, None),
 
-            // dcs param -> dcs ignore
-            (State::DcsParam, '\u{3a}') => self.enter(State::DcsIgnore),
-            (State::DcsParam, '\u{3c}'..='\u{3f}') => self.enter(State::DcsIgnore),
-
-            // dcs param -> dcs intermediate w/ collect
+            // |=================================|
+            // | dcs param transitions           |
+            // |=================================|
+            (State::DcsParam, '\u{3a}') | (State::DcsParam, '\u{3c}'..='\u{3f}') => {
+                (Some(State::DcsIgnore), None)
+            }
             (State::DcsParam, '\u{20}'..='\u{2f}') => {
-                self.enter(State::DcsIntermediate);
-                self.collect(input);
+                (Some(State::DcsIntermediate), Some(Action::Collect))
             }
+            (State::DcsParam, '\u{40}'..='\u{7e}') => (Some(State::DcsPassthrough), None),
 
-            // dcs param -> dcs passthrough
-            (State::DcsParam, '\u{40}'..='\u{7e}') => self.enter(State::DcsPassthrough),
+            // |=================================|
+            // | dcs passthrough events          |
+            // |=================================|
+            (State::DcsPassthrough, '\u{00}'..='\u{17}')
+            | (State::DcsPassthrough, '\u{19}')
+            | (State::DcsPassthrough, '\u{1c}'..='\u{1f}')
+            | (State::DcsPassthrough, '\u{20}'..='\u{7e}') => (None, Some(Action::Put)),
+            (State::DcsPassthrough, '\u{7f}') => (None, None),
 
-            // dcs ignore event / ignore
-            (State::DcsIgnore, '\u{00}'..='\u{17}') => (),
-            (State::DcsIgnore, '\u{19}') => (),
-            (State::DcsIgnore, '\u{1c}'..='\u{1f}') => (),
-            (State::DcsIgnore, '\u{20}'..='\u{7f}') => (),
+            // |=================================|
+            // | sos pm apc string events        |
+            // |=================================|
+            (State::SosPmApcString, '\u{00}'..='\u{17}')
+            | (State::SosPmApcString, '\u{19}')
+            | (State::SosPmApcString, '\u{1c}'..='\u{1f}')
+            | (State::SosPmApcString, '\u{20}'..='\u{7f}') => (None, None),
 
-            // dcs intermediate event / ignore
-            (State::DcsIntermediate, '\u{00}'..='\u{17}') => (),
-            (State::DcsIntermediate, '\u{19}') => (),
-            (State::DcsIntermediate, '\u{1c}'..='\u{1f}') => (),
-
-            // dcs intermediate event / collect
-            (State::DcsIntermediate, '\u{20}'..='\u{2f}') => self.collect(input),
-
-            // dcs intermediate event / ignore
-            (State::DcsIntermediate, '\u{7f}') => (),
-
-            // dcs intermediate event -> dcs ignore
-            (State::DcsIntermediate, '\u{30}'..='\u{3f}') => self.enter(State::DcsIgnore),
-
-            // dcs intermediate event -> dcs passthrough
-            (State::DcsIntermediate, '\u{40}'..='\u{7e}') => self.enter(State::DcsPassthrough),
-
-            // dcs passthrough event / put (unhandled)
-            (State::DcsPassthrough, '\u{00}'..='\u{17}') => (),
-            (State::DcsPassthrough, '\u{19}') => (),
-            (State::DcsPassthrough, '\u{1c}'..='\u{1f}') => (),
-            (State::DcsPassthrough, '\u{20}'..='\u{7e}') => (),
-
-            // dcs passthrough event / ignore
-            (State::DcsPassthrough, '\u{7f}') => (),
-
-            // anywhere -> sos pm apc string
-            (_, '\u{98}') | (_, '\u{9e}') | (_, '\u{9f}') => self.enter(State::SosPmApcString),
-
-            // sos pm apc string event / ignore
-            (State::SosPmApcString, '\u{00}'..='\u{17}') => (),
-            (State::SosPmApcString, '\u{19}') => (),
-            (State::SosPmApcString, '\u{1c}'..='\u{1f}') => (),
-            (State::SosPmApcString, '\u{20}'..='\u{7f}') => (),
+            // |=================================|
+            // | osc string events               |
+            // |=================================|
+            (State::OscString, '\u{00}'..='\u{17}')
+            | (State::OscString, '\u{19}')
+            | (State::OscString, '\u{1c}'..='\u{1f}') => (None, None),
+            (State::OscString, '\u{20}'..='\u{7f}') => (None, Some(Action::OscPut)),
 
             _ => panic!(
-                "Unhandled state / input pair: {:?} / {:x} ",
+                "Unhandled state / input pair: {:?} / {:x}",
                 self.state, input as u32
             ),
         }
     }
 
-    fn enter(&mut self, state: State) {
-        match state {
-            // No constant events, different entry points may trigger own
-            State::Ground => (),
-            State::EscapeIntermediate => (),
-            State::SosPmApcString => (),
-            State::CsiParam => (),
-            State::CsiIgnore => (),
-            State::CsiIntermediate => (),
-            State::DcsParam => (),
-            State::DcsIgnore => (),
-            State::DcsIntermediate => (),
-            // Alway run clear
-            State::Escape => self.clear(),
-            State::CsiEntry => self.clear(),
-            State::DcsEntry => self.clear(),
-            // Should be osc start, currently unhandled
-            State::OscString => (),
-            // Should run hook, currently unhandled
-            State::DcsPassthrough => (),
-        }
-        self.state = state;
-    }
-
-    fn execute(&mut self, terminal: &mut Terminal, input: char) {
-        match input {
-            '\u{08}' => terminal.bs(),
-            '\u{09}' => terminal.ht(),
-            '\u{0a}' => terminal.lf(),
-            '\u{0b}' => terminal.lf(),
-            '\u{0c}' => terminal.lf(),
-            '\u{0d}' => terminal.cr(),
-            '\u{0e}' => terminal.so(),
-            '\u{0f}' => terminal.si(),
-            '\u{84}' => terminal.lf(),
-            '\u{85}' => terminal.nel(),
-            '\u{88}' => terminal.hts(),
-            '\u{8d}' => terminal.ri(),
-            _ => (),
-        }
-    }
-
-    fn clear(&mut self) {
-        self.params = Params::default();
-        self.intermediates = Intermediates::default();
-    }
-
-    fn collect(&mut self, input: char) {
-        self.intermediates.0.push(input);
-    }
-
-    fn param(&mut self, input: char) {
-        if input == ';' {
-            self.params.0.push(0);
-        } else {
-            let n = self.params.0.len() - 1;
-            let p = &mut self.params.0[n];
-            *p = (10 * (*p as u32) + (input as u32) - 0x30) as u16;
-        }
-    }
-
-    fn esc_dispatch(&mut self, terminal: &mut Terminal, input: char) {
-        match (self.intermediates.0.first(), input) {
-            (None, c) if ('@'..='_').contains(&c) => {
-                self.execute(terminal, ((input as u8) + 0x40) as char)
+    fn perform_action(&mut self, input: char, terminal: &mut Terminal, action: Option<Action>) {
+        if let Some(action) = action {
+            match action {
+                Action::Clear => {
+                    self.params = Params::default();
+                    self.intermediate_idx = 0;
+                }
+                Action::Collect => {
+                    self.intermediates[self.intermediate_idx] = input;
+                    self.intermediate_idx += 1;
+                }
+                Action::CsiDispatch => {
+                    terminal.csi_dispatch(&self.params, self.intermediates(), input)
+                }
+                Action::EscDispatch => terminal.esc_dispatch(self.intermediates(), input),
+                Action::Execute => terminal.execute(input),
+                Action::Param => {
+                    if input == ';' {
+                        self.params.0.push(0);
+                    } else {
+                        let n = self.params.0.len() - 1;
+                        let p = &mut self.params.0[n];
+                        *p = (10 * (*p as u32) + (input as u32) - 0x30) as u16;
+                    }
+                }
+                Action::Print => terminal.print(input),
+                // (unhandled)
+                Action::Hook => (),
+                Action::Put => (),
+                Action::Unhook => (),
+                Action::OscStart => (),
+                Action::OscPut => (),
+                Action::OscEnd => (),
             }
-            (None, '7') => terminal.sc(),
-            (None, '8') => terminal.rc(),
-            (None, 'c') => {
-                self.state = State::Ground;
-                terminal.ris();
-            }
-            (Some('#'), '8') => terminal.decaln(),
-            (Some('('), '0') => terminal.gzd4(Charset::Drawing),
-            (Some('('), _) => terminal.gzd4(Charset::Ascii),
-            (Some(')'), '0') => terminal.g1d4(Charset::Drawing),
-            (Some(')'), _) => terminal.g1d4(Charset::Ascii),
-            _ => (),
-        }
-    }
-
-    fn csi_dispatch(&mut self, terminal: &mut Terminal, input: char) {
-        match (self.intermediates.0.first(), input) {
-            (None, '@') => terminal.ich(&self.params),
-            (None, 'A') => terminal.cuu(&self.params),
-            (None, 'B') => terminal.cud(&self.params),
-            (None, 'C') => terminal.cuf(&self.params),
-            (None, 'D') => terminal.cub(&self.params),
-            (None, 'E') => terminal.cnl(&self.params),
-            (None, 'F') => terminal.cpl(&self.params),
-            (None, 'G') => terminal.cha(&self.params),
-            (None, 'H') => terminal.cup(&self.params),
-            (None, 'I') => terminal.cht(&self.params),
-            (None, 'J') => terminal.ed(&self.params),
-            (None, 'K') => terminal.el(&self.params),
-            (None, 'L') => terminal.il(&self.params),
-            (None, 'M') => terminal.dl(&self.params),
-            (None, 'P') => terminal.dch(&self.params),
-            (None, 'S') => terminal.su(&self.params),
-            (None, 'T') => terminal.sd(&self.params),
-            (None, 'W') => terminal.ctc(&self.params),
-            (None, 'X') => terminal.ech(&self.params),
-            (None, 'Z') => terminal.cbt(&self.params),
-            (None, '`') => terminal.cha(&self.params),
-            (None, 'a') => terminal.cuf(&self.params),
-            (None, 'b') => terminal.rep(&self.params),
-            (None, 'd') => terminal.vpa(&self.params),
-            (None, 'e') => terminal.vpr(&self.params),
-            (None, 'f') => terminal.cup(&self.params),
-            (None, 'g') => terminal.tbc(&self.params),
-            (None, 'h') => terminal.sm(&self.params),
-            (None, 'l') => terminal.rm(&self.params),
-            (None, 'm') => terminal.sgr(&self.params),
-            (None, 'r') => terminal.decstbm(&self.params),
-            (None, 's') => terminal.sc(),
-            (None, 't') => terminal.xtwinops(&self.params),
-            (None, 'u') => terminal.rc(),
-            (Some('!'), 'p') => terminal.decstr(),
-            (Some('?'), 'h') => terminal.prv_sm(&self.params),
-            (Some('?'), 'l') => terminal.prv_rm(&self.params),
-            _ => {}
         }
     }
 }
