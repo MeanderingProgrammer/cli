@@ -6,6 +6,7 @@ version = 3
 name = "avt"
 version = "0.0.2"
 dependencies = [
+ "log",
  "rgb",
  "unicode-width",
 ]
@@ -15,6 +16,12 @@ name = "bytemuck"
 version = "1.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "78834c15cb5d5efe3452d58b1e8ba890dd62d21907f867f383358198e56ebca5"
+
+[[package]]
+name = "log"
+version = "0.4.21"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "90ed8c1e510134f979dbc4f070f87d4313098b704861a105fe34231c70a3901c"
 
 [[package]]
 name = "rgb"

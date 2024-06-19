@@ -20,10 +20,6 @@ struct Cli {
     #[clap(long, default_values_t = [String::from("Monaspace Neon"), String::from("Symbols Nerd Font"), String::from("JetBrainsMono Nerd Font")])]
     font: Vec<String>,
 
-    /// Use additional font directory
-    #[clap(long)]
-    font_dir: Vec<String>,
-
     /// Specify font size (in pixels)
     #[clap(long, default_value_t = 14)]
     font_size: usize,
@@ -72,7 +68,6 @@ fn main() -> Result<()> {
     let config = Config {
         renderer: cli.renderer,
         fonts: cli.font,
-        font_dirs: cli.font_dir,
         font_size: cli.font_size,
         line_height: cli.line_height,
         theme: cli.theme,

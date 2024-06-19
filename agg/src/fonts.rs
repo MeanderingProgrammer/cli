@@ -37,20 +37,19 @@ pub struct CachingFontDb {
     glyph_cache: HashMap<CharVariant, Option<Glyph>>,
 }
 
-impl CachingFontDb {
-    pub fn new(font_dirs: &[String]) -> Self {
+impl Default for CachingFontDb {
+    fn default() -> Self {
         let mut db = Database::new();
         db.load_system_fonts();
-        for dir in font_dirs {
-            db.load_fonts_dir(shellexpand::tilde(dir).to_string());
-        }
         Self {
             db,
             font_cache: HashMap::new(),
             glyph_cache: HashMap::new(),
         }
     }
+}
 
+impl CachingFontDb {
     pub fn available_fonts(&self, fonts: &[String]) -> Vec<String> {
         let mut families: Vec<String> = fonts
             .iter()

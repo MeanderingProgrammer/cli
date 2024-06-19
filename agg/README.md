@@ -47,9 +47,6 @@ Run `agg -h` to see all available options. Current options are:
 --font <FONT>
     Specify font family [default: "Monaspace Neon" "Symbols Nerd Font" "JetBrainsMono Nerd Font"]
 
---font-dir <FONT_DIR>
-    Use additional font directory
-
 --font-size <FONT_SIZE>
     Specify font size (in pixels) [default: 14]
 
@@ -86,10 +83,8 @@ If you want to use another font family then pass multiple values like this:
 agg --font "Source Code Pro" --font "Fira Code" demo.cast demo.gif
 ```
 
-As long as the fonts you want to use are installed in one of standard system
-locations (e.g. /usr/share/fonts or ~/.local/share/fonts on Linux) agg will find
-them. You can also use `--font-dir=/path/to/fonts` option to include extra
-fonts. `--font-dir` can be specified multiple times.
+As long as the fonts you want to use are installed in one of standard system locations
+(e.g. /usr/share/fonts or ~/.local/share/fonts on Linux) agg will find them.
 
 To verify agg picks up your font run it with `-v` (verbose) flag:
 

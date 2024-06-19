@@ -16,7 +16,7 @@ impl Vt {
         }
     }
 
-    pub fn feed_str(&mut self, s: &str) -> Vec<usize> {
+    pub fn feed_str(&mut self, s: &str) -> bool {
         self.parser.feed_str(s, &mut self.terminal);
         self.terminal.changes()
     }

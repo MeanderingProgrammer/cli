@@ -1,5 +1,6 @@
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub enum Charset {
+    #[default]
     Ascii,
     Drawing,
 }

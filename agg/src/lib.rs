@@ -16,7 +16,6 @@ mod vt;
 pub struct Config {
     pub renderer: RendererName,
     pub fonts: Vec<String>,
-    pub font_dirs: Vec<String>,
     pub font_size: usize,
     pub line_height: f64,
     pub theme: ThemeName,
@@ -39,7 +38,7 @@ pub fn run(input: File, output: File, config: Config) -> Result<()> {
     let count = stdout.len() as u64;
     let frames = vt::frames(stdout.into_iter(), terminal_size);
 
-    let font_db = fonts::CachingFontDb::new(&config.font_dirs);
+    let font_db = fonts::CachingFontDb::default();
     let font_families = font_db.available_fonts(&config.fonts);
     if font_families.is_empty() {
         bail!("no faces matching font families {:?}", config.fonts);

@@ -2,13 +2,13 @@ use crate::terminal::Terminal;
 
 #[derive(Debug)]
 enum Action {
-    Clear,
-    Collect,
+    Print,
+    Execute,
     CsiDispatch,
     EscDispatch,
-    Execute,
+    Collect,
     Param,
-    Print,
+    Clear,
     Hook,
     Put,
     Unhook,
@@ -24,16 +24,16 @@ enum State {
     Escape,
     EscapeIntermediate,
     CsiEntry,
+    CsiIgnore,
     CsiParam,
     CsiIntermediate,
-    CsiIgnore,
     DcsEntry,
-    DcsParam,
     DcsIntermediate,
-    DcsPassthrough,
     DcsIgnore,
-    OscString,
+    DcsParam,
+    DcsPassthrough,
     SosPmApcString,
+    OscString,
 }
 
 impl State {
@@ -60,43 +60,24 @@ impl State {
 }
 
 #[derive(Debug)]
-pub struct Params(Vec<u16>);
+pub struct Parser {
+    state: State,
+    params: Vec<u16>,
+    intermediates: Vec<char>,
+}
 
-impl Params {
-    pub fn iter(&self) -> std::slice::Iter<u16> {
-        self.0.iter()
-    }
-
-    pub fn as_slice(&self) -> &[u16] {
-        &self.0[..]
-    }
-
-    pub fn get(&self, i: usize, default: usize) -> usize {
-        let param = *self.0.get(i).unwrap_or(&0);
-        if param == 0 {
-            default
-        } else {
-            param as usize
+impl Default for Parser {
+    fn default() -> Self {
+        Self {
+            state: State::default(),
+            params: vec![0],
+            intermediates: vec![],
         }
     }
 }
 
-impl Default for Params {
-    fn default() -> Self {
-        let mut params = Vec::with_capacity(8);
-        params.push(0);
-        Self(params)
-    }
-}
-
-#[derive(Debug, Default)]
-pub struct Parser {
-    state: State,
-    params: Params,
-    intermediates: [char; 2],
-    intermediate_idx: usize,
-}
-
+// https://www.vt100.net/emu/dec_ansi_parser
+// https://github.com/haberman/vtparse/blob/master/vtparse_tables.rb
 impl Parser {
     pub fn feed_str(&mut self, input: &str, terminal: &mut Terminal) {
         for ch in input.chars() {
@@ -116,12 +97,6 @@ impl Parser {
         }
     }
 
-    fn intermediates(&self) -> &[char] {
-        &self.intermediates[..self.intermediate_idx]
-    }
-
-    // https://www.vt100.net/emu/dec_ansi_parser
-    // https://github.com/haberman/vtparse/blob/master/vtparse_tables.rb
     fn get_state_change(&self, input: char) -> (Option<State>, Option<Action>) {
         let clamped_input = if input >= '\u{a0}' { '\u{41}' } else { input };
         match (&self.state, clamped_input) {
@@ -377,29 +352,25 @@ impl Parser {
     fn perform_action(&mut self, input: char, terminal: &mut Terminal, action: Option<Action>) {
         if let Some(action) = action {
             match action {
-                Action::Clear => {
-                    self.params = Params::default();
-                    self.intermediate_idx = 0;
-                }
-                Action::Collect => {
-                    self.intermediates[self.intermediate_idx] = input;
-                    self.intermediate_idx += 1;
-                }
-                Action::CsiDispatch => {
-                    terminal.csi_dispatch(&self.params, self.intermediates(), input)
-                }
-                Action::EscDispatch => terminal.esc_dispatch(self.intermediates(), input),
-                Action::Execute => terminal.execute(input),
-                Action::Param => {
-                    if input == ';' {
-                        self.params.0.push(0);
-                    } else {
-                        let n = self.params.0.len() - 1;
-                        let p = &mut self.params.0[n];
-                        *p = (10 * (*p as u32) + (input as u32) - 0x30) as u16;
-                    }
-                }
                 Action::Print => terminal.print(input),
+                Action::Execute => terminal.execute(input),
+                Action::CsiDispatch => {
+                    terminal.csi_dispatch(&self.params, &self.intermediates, input)
+                }
+                Action::EscDispatch => terminal.esc_dispatch(&self.intermediates, input),
+                Action::Collect => self.intermediates.push(input),
+                Action::Param => match input {
+                    ';' => self.params.push(0),
+                    '0'..='9' => {
+                        let p = self.params.last_mut().unwrap();
+                        *p = (10 * (*p)) + input.to_digit(10).unwrap() as u16;
+                    }
+                    _ => panic!("Unhandled param: {:?}", input),
+                },
+                Action::Clear => {
+                    self.params = vec![0];
+                    self.intermediates = vec![];
+                }
                 // (unhandled)
                 Action::Hook => (),
                 Action::Put => (),

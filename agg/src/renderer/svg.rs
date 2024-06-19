@@ -40,12 +40,6 @@ fn text_class(pen: &Pen) -> String {
     class
 }
 
-fn rect_style(background: Option<RGB8>) -> String {
-    background
-        .map(|c| color_to_style(&c))
-        .unwrap_or_else(|| "".to_owned())
-}
-
 impl<'a> SvgRenderer<'a> {
     pub fn new(settings: Settings) -> Self {
         let char_width = 100.0 / (settings.terminal_size.0 as f64 + 2.0);
@@ -59,14 +53,14 @@ impl<'a> SvgRenderer<'a> {
 
         let header = Self::header(
             settings.terminal_size,
-            settings.font_families.join(","),
+            settings.font_families.join(", "),
             font_size,
             row_height,
             &settings.theme,
         );
 
         let mut svg = header.clone();
-        svg.push_str(Self::footer());
+        svg.push_str(&Self::footer());
         let tree = Tree::from_str(&svg, &options).unwrap();
         let screen_size = tree.size();
         let pixel_width = screen_size.width() as usize;
@@ -111,8 +105,8 @@ impl<'a> SvgRenderer<'a> {
         )
     }
 
-    fn footer() -> &'static str {
-        "</svg></svg>"
+    fn footer() -> String {
+        "</svg></svg>".to_string()
     }
 
     fn push_lines(&self, svg: &mut String, frame: Frame) {
@@ -122,26 +116,25 @@ impl<'a> SvgRenderer<'a> {
 
     fn push_background(&self, svg: &mut String, frame: &Frame) {
         let (cols, rows) = self.terminal_size;
-
         svg.push_str(r#"<g style="shape-rendering: optimizeSpeed">"#);
         for (row, line) in frame.lines.iter().enumerate() {
             let y = 100.0 * (row as f64) / (rows as f64 + 1.0);
-
             for (col, (_, pen)) in line.iter().enumerate() {
                 let attrs = text_attrs(pen, &frame.cursor, col, row, &self.theme);
-
                 if attrs.background.is_none() {
                     continue;
                 }
-
                 let x = 100.0 * (col as f64) / (cols as f64 + 2.0);
-                let style = rect_style(attrs.background);
-
-                let _ = write!(
+                let style = attrs
+                    .background
+                    .map(|c| color_to_style(&c))
+                    .unwrap_or_else(|| "".to_owned());
+                write!(
                     svg,
                     r#"<rect x="{:.3}%" y="{:.3}%" width="{:.3}%" height="{:.3}" style="{}" />"#,
                     x, y, self.char_width, self.row_height, style
-                );
+                )
+                .unwrap();
             }
         }
         svg.push_str("</g>");
@@ -149,32 +142,25 @@ impl<'a> SvgRenderer<'a> {
 
     fn push_text(&self, svg: &mut String, frame: &Frame) {
         let (cols, rows) = self.terminal_size;
-
         svg.push_str(r#"<text class="default-text-fill">"#);
         for (row, line) in frame.lines.iter().enumerate() {
             let y = 100.0 * (row as f64) / (rows as f64 + 1.0);
             let mut did_dy = false;
-
-            let _ = write!(svg, r#"<tspan y="{y:.3}%">"#);
+            write!(svg, r#"<tspan y="{y:.3}%">"#).unwrap();
             for (col, (ch, pen)) in line.iter().enumerate() {
                 if ch == &' ' {
                     continue;
                 }
-
                 let attrs = text_attrs(pen, &frame.cursor, col, row, &self.theme);
-
                 svg.push_str("<tspan ");
                 if !did_dy {
                     svg.push_str(r#"dy="1em" "#);
                     did_dy = true;
                 }
-
                 let x = 100.0 * (col as f64) / (cols as f64 + 2.0);
                 let class = text_class(pen);
                 let style = color_to_style(&attrs.foreground);
-
-                let _ = write!(svg, r#"x="{x:.3}%" class="{class}" style="{style}">"#);
-
+                write!(svg, r#"x="{x:.3}%" class="{class}" style="{style}">"#).unwrap();
                 match ch {
                     '\'' => svg.push_str("&#39;"),
                     '"' => svg.push_str("&quot;"),
@@ -195,11 +181,10 @@ impl<'a> Renderer for SvgRenderer<'a> {
     fn render(&mut self, frame: Frame) -> ImgVec<RGBA8> {
         let mut svg = self.header.clone();
         self.push_lines(&mut svg, frame);
-        svg.push_str(Self::footer());
+        svg.push_str(&Self::footer());
+
         let tree = Tree::from_str(&svg, &self.options).unwrap();
-
         let mut pixmap = Pixmap::new(self.pixel_width as u32, self.pixel_height as u32).unwrap();
-
         resvg::render(&tree, self.transform, &mut pixmap.as_mut());
         let buf = pixmap.take().as_rgba().to_vec();
 

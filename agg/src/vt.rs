@@ -17,7 +17,7 @@ pub fn frames(
     events.filter_map(move |Event { time, data }| {
         let changed_lines = vt.feed_str(&data);
         let cursor = vt.cursor();
-        if !changed_lines.is_empty() || cursor != prev_cursor {
+        if changed_lines || cursor != prev_cursor {
             prev_cursor = cursor;
             let lines = vt
                 .view()

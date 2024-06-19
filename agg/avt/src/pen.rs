@@ -94,7 +94,7 @@ impl Pen {
     pub fn is_default(&self) -> bool {
         self.foreground.is_none()
             && self.background.is_none()
-            && self.intensity == Intensity::Normal
+            && self.intensity == Intensity::default()
             && !self.is_italic()
             && !self.is_underline()
             && !self.is_strikethrough()

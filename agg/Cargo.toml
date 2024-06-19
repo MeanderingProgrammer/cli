@@ -16,4 +16,3 @@ log = "0.4.21"
 resvg = { version = "0.42.0", features = ["text"] }
 serde = { version = "1.0.203", features = ["derive"] }
 serde_json = "1.0.117"
-shellexpand = "3.1.0"
