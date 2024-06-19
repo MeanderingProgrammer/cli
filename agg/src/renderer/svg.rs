@@ -15,8 +15,8 @@ pub struct SvgRenderer<'a> {
     theme: Theme,
     pixel_width: usize,
     pixel_height: usize,
-    char_width: f64,
-    row_height: f64,
+    char_width: f32,
+    row_height: f32,
     options: Options<'a>,
     transform: Transform,
     header: String,
@@ -42,9 +42,8 @@ fn text_class(pen: &Pen) -> String {
 
 impl<'a> SvgRenderer<'a> {
     pub fn new(settings: Settings) -> Self {
-        let char_width = 100.0 / (settings.terminal_size.0 as f64 + 2.0);
-        let font_size = settings.font_size as f64;
-        let row_height = font_size * settings.line_height;
+        let char_width = 100.0 / (settings.terminal_size.0 as f32 + 2.0);
+        let row_height = settings.font_size * settings.line_height;
         let options = Options {
             fontdb: Arc::new(settings.font_db.db),
             ..Options::default()
@@ -54,7 +53,7 @@ impl<'a> SvgRenderer<'a> {
         let header = Self::header(
             settings.terminal_size,
             settings.font_families.join(", "),
-            font_size,
+            settings.font_size,
             row_height,
             &settings.theme,
         );
@@ -82,12 +81,12 @@ impl<'a> SvgRenderer<'a> {
     fn header(
         (cols, rows): (usize, usize),
         font_family: String,
-        font_size: f64,
-        row_height: f64,
+        font_size: f32,
+        row_height: f32,
         theme: &Theme,
     ) -> String {
-        let width = (cols + 2) as f64 * (font_size * 0.6);
-        let height = (rows + 1) as f64 * row_height;
+        let width = (cols + 2) as f32 * (font_size * 0.6);
+        let height = (rows + 1) as f32 * row_height;
         let x = 1.0 * 100.0 / (cols as f64 + 2.0);
         let y = 0.5 * 100.0 / (rows as f64 + 1.0);
 

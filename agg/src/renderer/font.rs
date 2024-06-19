@@ -9,12 +9,12 @@ use imgref::ImgVec;
 pub struct FontRenderer {
     font_families: Vec<String>,
     theme: Theme,
-    font_size: usize,
+    font_size: f32,
     font_db: CachingFontDb,
     pixel_width: usize,
     pixel_height: usize,
-    col_width: f64,
-    row_height: f64,
+    col_width: f32,
+    row_height: f32,
 }
 
 impl FontRenderer {
@@ -33,17 +33,17 @@ impl FontRenderer {
 
         let (cols, rows) = settings.terminal_size;
 
-        let metrics = default_font.metrics('/', settings.font_size as f32);
-        let col_width = metrics.advance_width as f64;
-        let row_height = (settings.font_size as f64) * settings.line_height;
+        let metrics = default_font.metrics('/', settings.font_size);
+        let col_width = metrics.advance_width;
+        let row_height = settings.font_size * settings.line_height;
 
         Self {
             font_families: settings.font_families,
             theme: settings.theme,
             font_size: settings.font_size,
             font_db: settings.font_db,
-            pixel_width: ((cols + 2) as f64 * col_width).round() as usize,
-            pixel_height: ((rows + 1) as f64 * row_height).round() as usize,
+            pixel_width: ((cols + 2) as f32 * col_width).round() as usize,
+            pixel_height: ((rows + 1) as f32 * row_height).round() as usize,
             col_width,
             row_height,
         }
@@ -51,101 +51,21 @@ impl FontRenderer {
 
     fn y_bounds(&self, row: usize) -> (usize, usize) {
         let margin = self.row_height / 2.0;
-        let top = (margin + row as f64 * self.row_height).round() as usize;
-        let bottom = (margin + (row + 1) as f64 * self.row_height).round() as usize;
+        let top = (margin + row as f32 * self.row_height).round() as usize;
+        let bottom = (margin + (row + 1) as f32 * self.row_height).round() as usize;
         (top, bottom)
     }
 
     fn x_bounds(&self, col: usize) -> (usize, usize) {
         let margin = self.col_width;
-        let left = (margin + col as f64 * self.col_width).round() as usize;
-        let right = (margin + (col + 1) as f64 * self.col_width).round() as usize;
+        let left = (margin + col as f32 * self.col_width).round() as usize;
+        let right = (margin + (col + 1) as f32 * self.col_width).round() as usize;
         (left, right)
     }
 }
 
-impl FontRenderer {
-    fn render_new(&mut self, frame: Frame) -> ImgVec<RGBA8> {
-        let initial_color = self.theme.background.alpha(255);
-        let mut buf: Vec<RGBA8> = vec![initial_color; self.pixel_width * self.pixel_height];
-
-        for (row, chars) in frame.lines.iter().enumerate() {
-            let (y_t, y_b) = self.y_bounds(row);
-
-            let mut margin_left = self.col_width;
-            for (col, (ch, pen)) in chars.iter().enumerate() {
-                let glyph = self.font_db.get_glyph_cache(
-                    (*ch, pen.into()),
-                    self.font_size as f32,
-                    &self.font_families,
-                );
-
-                let width = match glyph {
-                    Some((metrics, _)) => metrics.advance_width as f64,
-                    None => self.col_width,
-                };
-                let x_l = margin_left.round() as usize;
-                let x_r = (margin_left + width).round() as usize;
-
-                margin_left += width;
-
-                let attrs = text_attrs(pen, &frame.cursor, col, row, &self.theme);
-                if let Some(bg) = attrs.background {
-                    for y in y_t..y_b {
-                        for x in x_l..x_r {
-                            buf[y * self.pixel_width + x] = bg.alpha(255);
-                        }
-                    }
-                }
-                if pen.is_underline() {
-                    let fg = attrs.foreground.alpha(255);
-                    let y = y_t + (self.font_size as f64 * 1.2).round() as usize;
-                    for x in x_l..x_r {
-                        buf[y * self.pixel_width + x] = fg;
-                    }
-                }
-
-                if ch == &' ' || glyph.is_none() {
-                    continue;
-                }
-                let (metrics, bitmap) = glyph.unwrap();
-                log::info!("CHAR: {}, X-MIN: {}", ch, metrics.xmin);
-
-                let y_offset = (y_t + self.font_size - metrics.height) as i32 - metrics.ymin;
-                let x_offset = x_l as i32 + metrics.xmin;
-
-                for bmap_y in 0..metrics.height {
-                    let y = y_offset + bmap_y as i32;
-                    if y < 0 || y >= self.pixel_height as i32 {
-                        continue;
-                    }
-                    let y = y as usize;
-
-                    for bmap_x in 0..metrics.width {
-                        let x = x_offset + bmap_x as i32;
-                        if x < 0 || x >= self.pixel_width as i32 {
-                            continue;
-                        }
-                        let x = x as usize;
-
-                        let idx = y * self.pixel_width + x;
-                        let fg = attrs.foreground.alpha(255);
-                        let bg = buf[idx];
-                        let ratio = bitmap[bmap_y * metrics.width + bmap_x] as u16;
-                        buf[idx] = RGBA8::new(
-                            mix_colors(fg.r, bg.r, ratio),
-                            mix_colors(fg.g, bg.g, ratio),
-                            mix_colors(fg.b, bg.b, ratio),
-                            255,
-                        );
-                    }
-                }
-            }
-        }
-        ImgVec::new(buf, self.pixel_width, self.pixel_height)
-    }
-
-    fn render_old(&mut self, frame: Frame) -> ImgVec<RGBA8> {
+impl Renderer for FontRenderer {
+    fn render(&mut self, frame: Frame) -> ImgVec<RGBA8> {
         let initial_color = self.theme.background.alpha(255);
         let mut buf: Vec<RGBA8> = vec![initial_color; self.pixel_width * self.pixel_height];
 
@@ -164,7 +84,7 @@ impl FontRenderer {
                 }
                 if pen.is_underline() {
                     let fg = attrs.foreground.alpha(255);
-                    let y = y_t + (self.font_size as f64 * 1.2).round() as usize;
+                    let y = y_t + (self.font_size * 1.2).round() as usize;
                     for x in x_l..x_r {
                         buf[y * self.pixel_width + x] = fg;
                     }
@@ -182,15 +102,16 @@ impl FontRenderer {
                 }
                 let glyph = self.font_db.get_glyph_cache(
                     (*ch, pen.into()),
-                    self.font_size as f32,
+                    self.font_size,
                     &self.font_families,
                 );
                 if glyph.is_none() {
                     continue;
                 }
-                let (metrics, bitmap) = glyph.unwrap();
+                let (_, metrics, bitmap) = glyph.unwrap();
 
-                let y_offset = (y_t + self.font_size - metrics.height) as i32 - metrics.ymin;
+                let y_offset =
+                    (y_t + self.font_size as usize - metrics.height) as i32 - metrics.ymin;
                 let x_offset = x_l as i32 + metrics.xmin;
 
                 for bmap_y in 0..metrics.height {
@@ -230,12 +151,6 @@ impl FontRenderer {
         }
 
         ImgVec::new(buf, self.pixel_width, self.pixel_height)
-    }
-}
-
-impl Renderer for FontRenderer {
-    fn render(&mut self, frame: Frame) -> ImgVec<RGBA8> {
-        self.render_new(frame)
     }
 
     fn pixel_size(&self) -> (usize, usize) {

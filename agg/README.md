@@ -45,7 +45,7 @@ Run `agg -h` to see all available options. Current options are:
     Select frame rendering backend [default: fontdue] [possible values: fontdue, resvg]
 
 --font <FONT>
-    Specify font family [default: "Monaspace Neon" "Symbols Nerd Font" "JetBrainsMono Nerd Font"]
+    Specify font families [default: "Monaspace Neon" "JetBrainsMono Nerd Font"]
 
 --font-size <FONT_SIZE>
     Specify font size (in pixels) [default: 14]

@@ -16,8 +16,8 @@ mod vt;
 pub struct Config {
     pub renderer: RendererName,
     pub fonts: Vec<String>,
-    pub font_size: usize,
-    pub line_height: f64,
+    pub font_size: f32,
+    pub line_height: f32,
     pub theme: ThemeName,
     pub speed: f64,
     pub fps_cap: u8,

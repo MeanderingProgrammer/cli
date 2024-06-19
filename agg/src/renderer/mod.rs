@@ -36,8 +36,8 @@ pub struct Settings {
     pub terminal_size: (usize, usize),
     pub font_db: CachingFontDb,
     pub font_families: Vec<String>,
-    pub font_size: usize,
-    pub line_height: f64,
+    pub font_size: f32,
+    pub line_height: f32,
     pub theme: Theme,
 }
 

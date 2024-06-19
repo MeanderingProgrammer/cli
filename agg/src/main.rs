@@ -17,16 +17,16 @@ struct Cli {
     renderer: RendererName,
 
     /// Specify font families
-    #[clap(long, default_values_t = [String::from("Monaspace Neon"), String::from("Symbols Nerd Font"), String::from("JetBrainsMono Nerd Font")])]
+    #[clap(long, default_values_t = [String::from("Monaspace Neon"), String::from("JetBrainsMono Nerd Font")])]
     font: Vec<String>,
 
     /// Specify font size (in pixels)
-    #[clap(long, default_value_t = 14)]
-    font_size: usize,
+    #[clap(long, default_value_t = 14.0)]
+    font_size: f32,
 
     /// Specify line height
     #[clap(long, default_value_t = 1.4)]
-    line_height: f64,
+    line_height: f32,
 
     /// Select color theme
     #[clap(long, value_enum, default_value_t = ThemeName::default())]

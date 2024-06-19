@@ -28,7 +28,7 @@ impl From<&Pen> for Variant {
 
 type FontVariant = (String, Variant);
 type CharVariant = (char, Variant);
-type Glyph = (Metrics, Vec<u8>);
+type Glyph = (String, Metrics, Vec<u8>);
 
 #[derive(Debug)]
 pub struct CachingFontDb {
@@ -113,10 +113,11 @@ impl CachingFontDb {
         font_families: &[String],
     ) -> Option<Glyph> {
         font_families.iter().cloned().find_map(|name| {
-            match self.get_font_cache((name, key.1.clone())) {
+            match self.get_font_cache((name.clone(), key.1.clone())) {
                 Some(font) => {
                     if font.has_glyph(key.0) {
-                        Some(font.rasterize(key.0, font_size))
+                        let (metrics, bitmap) = font.rasterize(key.0, font_size);
+                        Some((name, metrics, bitmap))
                     } else {
                         None
                     }
