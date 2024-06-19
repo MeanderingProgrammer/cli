@@ -373,6 +373,8 @@ impl Terminal {
             (_, ['(']) => self.charsets[0] = Charset::Ascii,
             ('0', [')']) => self.charsets[1] = Charset::Drawing,
             (_, [')']) => self.charsets[1] = Charset::Ascii,
+            // String terminator do nothing
+            ('\\', []) => (),
             // set_keypad_application_mode
             ('=', []) => (),
             // unset_keypad_application_mode
