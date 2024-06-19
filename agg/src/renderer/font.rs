@@ -65,7 +65,7 @@ impl FontRenderer {
 }
 
 impl FontRenderer {
-    fn render_other(&mut self, frame: Frame) -> ImgVec<RGBA8> {
+    fn render_new(&mut self, frame: Frame) -> ImgVec<RGBA8> {
         let initial_color = self.theme.background.alpha(255);
         let mut buf: Vec<RGBA8> = vec![initial_color; self.pixel_width * self.pixel_height];
 
@@ -108,7 +108,8 @@ impl FontRenderer {
                 if ch == &' ' || glyph.is_none() {
                     continue;
                 }
-                let (metrics, bitmap) = glyph.as_ref().unwrap();
+                let (metrics, bitmap) = glyph.unwrap();
+                log::info!("CHAR: {}, X-MIN: {}", ch, metrics.xmin);
 
                 let y_offset = (y_t + self.font_size - metrics.height) as i32 - metrics.ymin;
                 let x_offset = x_l as i32 + metrics.xmin;
@@ -119,7 +120,6 @@ impl FontRenderer {
                         continue;
                     }
                     let y = y as usize;
-                    //let pixel_row = pixel_position(row, frame.lines.len() - 1, y, y_t, y_b);
 
                     for bmap_x in 0..metrics.width {
                         let x = x_offset + bmap_x as i32;
@@ -127,11 +127,9 @@ impl FontRenderer {
                             continue;
                         }
                         let x = x as usize;
-                        //let pixel_col = pixel_position(col, chars.len() - 1, x, x_l, x_r);
 
-                        let fg = attrs.foreground.alpha(255);
                         let idx = y * self.pixel_width + x;
-
+                        let fg = attrs.foreground.alpha(255);
                         let bg = buf[idx];
                         let ratio = bitmap[bmap_y * metrics.width + bmap_x] as u16;
                         buf[idx] = RGBA8::new(
@@ -146,10 +144,8 @@ impl FontRenderer {
         }
         ImgVec::new(buf, self.pixel_width, self.pixel_height)
     }
-}
 
-impl Renderer for FontRenderer {
-    fn render(&mut self, frame: Frame) -> ImgVec<RGBA8> {
+    fn render_old(&mut self, frame: Frame) -> ImgVec<RGBA8> {
         let initial_color = self.theme.background.alpha(255);
         let mut buf: Vec<RGBA8> = vec![initial_color; self.pixel_width * self.pixel_height];
 
@@ -192,7 +188,7 @@ impl Renderer for FontRenderer {
                 if glyph.is_none() {
                     continue;
                 }
-                let (metrics, bitmap) = glyph.as_ref().unwrap();
+                let (metrics, bitmap) = glyph.unwrap();
 
                 let y_offset = (y_t + self.font_size - metrics.height) as i32 - metrics.ymin;
                 let x_offset = x_l as i32 + metrics.xmin;
@@ -234,6 +230,12 @@ impl Renderer for FontRenderer {
         }
 
         ImgVec::new(buf, self.pixel_width, self.pixel_height)
+    }
+}
+
+impl Renderer for FontRenderer {
+    fn render(&mut self, frame: Frame) -> ImgVec<RGBA8> {
+        self.render_new(frame)
     }
 
     fn pixel_size(&self) -> (usize, usize) {

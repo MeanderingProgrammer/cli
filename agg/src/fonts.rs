@@ -89,7 +89,7 @@ impl CachingFontDb {
         key: CharVariant,
         font_size: f32,
         font_families: &[String],
-    ) -> &Option<Glyph> {
+    ) -> Option<Glyph> {
         if !self.glyph_cache.contains_key(&key) {
             let rasterized = match self.rasterize_glyph(key.clone(), font_size, font_families) {
                 Some(glyph) => Some(glyph),
@@ -103,7 +103,7 @@ impl CachingFontDb {
             };
             self.glyph_cache.insert(key.clone(), rasterized);
         }
-        &self.glyph_cache[&key]
+        self.glyph_cache[&key].clone()
     }
 
     fn rasterize_glyph(
@@ -115,9 +115,8 @@ impl CachingFontDb {
         font_families.iter().cloned().find_map(|name| {
             match self.get_font_cache((name, key.1.clone())) {
                 Some(font) => {
-                    let idx = font.lookup_glyph_index(key.0);
-                    if idx > 0 {
-                        Some(font.rasterize_indexed(idx, font_size))
+                    if font.has_glyph(key.0) {
+                        Some(font.rasterize(key.0, font_size))
                     } else {
                         None
                     }
