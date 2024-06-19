@@ -19,3 +19,5 @@ install-update-asdf:
 demo-agg: install-agg
   rm -f agg/demo.gif
   agg agg/demo.cast agg/demo.gif -vvv
+  rm -f agg/heading.gif
+  agg agg/heading.cast agg/heading.gif -vvv
