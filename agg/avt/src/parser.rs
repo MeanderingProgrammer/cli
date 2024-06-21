@@ -86,35 +86,27 @@ impl Parser {
     }
 
     fn feed(&mut self, input: char, terminal: &mut Terminal) {
-        let (state, action) = self.get_state_change(input);
-        if state.is_some() {
-            self.perform_action(input, terminal, self.state.exit_action());
-        }
-        self.perform_action(input, terminal, action);
-        if let Some(state) = state {
-            self.perform_action(input, terminal, state.enter_action());
-            self.state = state;
-        }
+        match self.get_state_change(input) {
+            (Some(state), action) => {
+                self.perform_action(input, terminal, self.state.exit_action());
+                self.perform_action(input, terminal, action);
+                self.perform_action(input, terminal, state.enter_action());
+                self.state = state;
+            }
+            (None, action) => {
+                self.perform_action(input, terminal, action);
+            }
+        };
     }
 
     fn get_state_change(&self, input: char) -> (Option<State>, Option<Action>) {
-        let clamped_input = if input >= '\u{a0}' { '\u{41}' } else { input };
-        match (&self.state, clamped_input) {
+        match (&self.state, input) {
             // |=================================|
             // | anywhere transitions            |
             // |=================================|
-            (_, '\u{18}')
-            | (_, '\u{1a}')
-            | (_, '\u{80}'..='\u{8f}')
-            | (_, '\u{91}'..='\u{97}')
-            | (_, '\u{99}')
-            | (_, '\u{9a}') => (Some(State::Ground), Some(Action::Execute)),
-            (_, '\u{9c}') => (Some(State::Ground), None),
+            // Excluded cases: 80..=8f|91..=97|99|9a|9c|98|9e|9f|90|9d|9b
+            (_, '\u{18}') | (_, '\u{1a}') => (Some(State::Ground), Some(Action::Execute)),
             (_, '\u{1b}') => (Some(State::Escape), None),
-            (_, '\u{98}') | (_, '\u{9e}') | (_, '\u{9f}') => (Some(State::SosPmApcString), None),
-            (_, '\u{90}') => (Some(State::DcsEntry), None),
-            (_, '\u{9d}') => (Some(State::OscString), None),
-            (_, '\u{9b}') => (Some(State::CsiEntry), None),
 
             // |=================================|
             // | ground events                   |
@@ -123,6 +115,8 @@ impl Parser {
             | (State::Ground, '\u{19}')
             | (State::Ground, '\u{1c}'..='\u{1f}') => (None, Some(Action::Execute)),
             (State::Ground, '\u{20}'..='\u{7f}') => (None, Some(Action::Print)),
+            // Handle > 1 byte unicode characters
+            (State::Ground, '\u{a0}'..='\u{10ffff}') => (None, Some(Action::Print)),
 
             // |=================================|
             // | escape events                   |
