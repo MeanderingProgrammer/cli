@@ -1,4 +1,4 @@
-use agg::{Config, RendererName, ThemeName};
+use agg::{RendererName, Runner, ThemeName};
 use anyhow::Result;
 use clap::{ArgAction, Parser};
 use std::fs::File;
@@ -65,7 +65,7 @@ fn main() -> Result<()> {
 
     let input = File::open(&cli.input_filename)?;
     let output = File::create(&cli.output_filename)?;
-    let config = Config {
+    let runner = Runner {
         renderer: cli.renderer,
         fonts: cli.font,
         font_size: cli.font_size,
@@ -75,5 +75,5 @@ fn main() -> Result<()> {
         fps_cap: cli.fps_cap,
         last_frame_duration: cli.last_frame_duration,
     };
-    agg::run(input, output, config)
+    runner.run(input, output)
 }

@@ -17,7 +17,10 @@ install-update-asdf:
   asdf reshim golang
 
 demo-agg: install-agg
-  rm -f agg/demo.gif
-  agg agg/demo.cast agg/demo.gif -vvv
-  rm -f agg/heading.gif
-  agg agg/heading.cast agg/heading.gif -vvv
+  just demo-agg-single "frame"
+  just demo-agg-single "demo"
+  just demo-agg-single "heading"
+
+demo-agg-single file:
+  rm -f agg/data/{{file}}.gif
+  agg agg/data/{{file}}.cast agg/data/{{file}}.gif -vvv
