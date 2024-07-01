@@ -178,7 +178,7 @@ impl Terminal {
             ('g', []) => match next_param(0) {
                 0 => self.clear_tab(),
                 3 => self.clear_all_tabs(),
-                _ => (),
+                param => log::debug!("Unhandled 'g' param: {:?}", param),
             },
             ('H', []) | ('f', []) => {
                 let x = next_param(1);
@@ -191,7 +191,7 @@ impl Terminal {
                     match param {
                         4 => self.insert_mode = true,
                         20 => self.new_line_mode = true,
-                        _ => (),
+                        _ => log::debug!("Unhandled 'h' param: {:?}", param),
                     }
                 }
             }
@@ -207,7 +207,7 @@ impl Terminal {
                         47 | 1047 => self.switch_to_alternate_buffer(false),
                         1048 => self.save_cursor(),
                         1049 => self.switch_to_alternate_buffer(true),
-                        _ => (),
+                        _ => log::debug!("Unhandled 'h?' param: {:?}", param),
                     }
                 }
             }
@@ -216,13 +216,13 @@ impl Terminal {
                 0 => self.erase(EraseMode::FromCursorToEndOfView),
                 1 => self.erase(EraseMode::FromStartOfViewToCursor),
                 2 => self.erase(EraseMode::WholeView),
-                _ => (),
+                param => log::debug!("Unhandled 'J' param: {:?}", param),
             },
             ('K', []) => match next_param(0) {
                 0 => self.erase(EraseMode::FromCursorToEndOfLine),
                 1 => self.erase(EraseMode::FromStartOfLineToCursor),
                 2 => self.erase(EraseMode::WholeLine),
-                _ => (),
+                param => log::debug!("Unhandled 'K' param: {:?}", param),
             },
             ('L', []) => {
                 let range = if self.cursor.row <= self.bottom_margin {
@@ -238,7 +238,7 @@ impl Terminal {
                     match param {
                         4 => self.insert_mode = false,
                         20 => self.new_line_mode = false,
-                        _ => (),
+                        _ => log::debug!("Unhandled 'l' param: {:?}", param),
                     }
                 }
             }
@@ -254,7 +254,7 @@ impl Terminal {
                         47 | 1047 => self.switch_to_primary_buffer(false),
                         1048 => self.restore_cursor(),
                         1049 => self.switch_to_primary_buffer(true),
-                        _ => (),
+                        _ => log::debug!("Unhandled 'l?' param: {:?}", param),
                     }
                 }
             }
@@ -295,7 +295,7 @@ impl Terminal {
                 [49] => self.pen.background = None,
                 [90..=97] => self.pen.foreground = Some((params[0] - 90 + 8).into()),
                 [100..=107] => self.pen.background = Some((params[0] - 100 + 8).into()),
-                _ => panic!("Unhandled params: {:?}", params),
+                _ => panic!("Unhandled 'm' params: {:?}", params),
             },
             ('P', []) => {
                 if self.cursor.col >= self.cols {
@@ -324,7 +324,7 @@ impl Terminal {
                 0 => self.set_tab(),
                 2 => self.clear_tab(),
                 5 => self.clear_all_tabs(),
-                _ => (),
+                param => log::debug!("Unhandled 'W' param: {:?}", param),
             },
             ('X', []) => self.erase(EraseMode::NextChars(next_param(1))),
             ('Z', []) => self.move_cursor_to_prev_tab(next_param(1)),

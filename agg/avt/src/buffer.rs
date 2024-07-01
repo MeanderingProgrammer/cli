@@ -3,13 +3,6 @@ use crate::line::Line;
 use crate::Pen;
 use std::ops::Range;
 
-#[derive(Debug)]
-pub struct Buffer {
-    cols: usize,
-    rows: usize,
-    lines: Vec<Line>,
-}
-
 pub enum EraseMode {
     NextChars(usize),
     FromCursorToEndOfView,
@@ -18,6 +11,13 @@ pub enum EraseMode {
     FromCursorToEndOfLine,
     FromStartOfLineToCursor,
     WholeLine,
+}
+
+#[derive(Debug)]
+pub struct Buffer {
+    cols: usize,
+    rows: usize,
+    lines: Vec<Line>,
 }
 
 impl Buffer {

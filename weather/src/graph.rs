@@ -29,10 +29,10 @@ pub fn create(city: &str, forecast: &Forecast) {
     plot.set_layout(
         Layout::new()
             .height(800)
-            .title(Title::new(&format!("Weather in {city}")))
+            .title(Title::with_text(format!("Weather in {city}")))
             .x_axis(
                 Axis::new()
-                    .title(Title::new("Date"))
+                    .title(Title::with_text("Date"))
                     .range_slider(RangeSlider::new().visible(true))
                     .range(vec![
                         format_date(forecast.start()),

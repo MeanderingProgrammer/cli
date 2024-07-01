@@ -7,12 +7,12 @@ description = "asciinema gif generator"
 [dependencies]
 anyhow = "1.0.86"
 avt = { path = "avt" }
-clap = { version = "4.5.7", features = ["derive"] }
+clap = { version = "4.5.8", features = ["derive"] }
 env_logger = "0.11.3"
 fontdue = "0.9.2"
 gifski = "1.32.0"
 imgref = "1.10.1"
-log = "0.4.21"
+log = "0.4.22"
 resvg = { version = "0.42.0", features = ["text"] }
 serde = { version = "1.0.203", features = ["derive"] }
-serde_json = "1.0.117"
+serde_json = "1.0.119"
