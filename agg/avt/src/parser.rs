@@ -1,4 +1,9 @@
-use crate::terminal::Terminal;
+pub trait Emulator {
+    fn print(&mut self, input: char);
+    fn execute(&mut self, input: char);
+    fn csi_dispatch(&mut self, input: char, intermediates: &[char], params: &[u16]);
+    fn esc_dispatch(&mut self, input: char, intermediates: &[char]);
+}
 
 #[derive(Debug)]
 enum Action {
@@ -76,16 +81,17 @@ impl Default for Parser {
     }
 }
 
+// https://github.com/alacritty/vte/blob/master/src/lib.rs
 // https://www.vt100.net/emu/dec_ansi_parser
 // https://github.com/haberman/vtparse/blob/master/vtparse_tables.rb
 impl Parser {
-    pub fn feed_str(&mut self, input: &str, terminal: &mut Terminal) {
+    pub fn feed_str<T: Emulator>(&mut self, input: &str, terminal: &mut T) {
         for ch in input.chars() {
             self.feed(ch, terminal);
         }
     }
 
-    fn feed(&mut self, input: char, terminal: &mut Terminal) {
+    fn feed<T: Emulator>(&mut self, input: char, terminal: &mut T) {
         match self.get_state_change(input) {
             (Some(state), action) => {
                 self.perform_action(input, terminal, self.state.exit_action());
@@ -343,15 +349,20 @@ impl Parser {
         }
     }
 
-    fn perform_action(&mut self, input: char, terminal: &mut Terminal, action: Option<Action>) {
+    fn perform_action<T: Emulator>(
+        &mut self,
+        input: char,
+        terminal: &mut T,
+        action: Option<Action>,
+    ) {
         if let Some(action) = action {
             match action {
                 Action::Print => terminal.print(input),
                 Action::Execute => terminal.execute(input),
                 Action::CsiDispatch => {
-                    terminal.csi_dispatch(&self.params, &self.intermediates, input)
+                    terminal.csi_dispatch(input, &self.intermediates, &self.params)
                 }
-                Action::EscDispatch => terminal.esc_dispatch(&self.intermediates, input),
+                Action::EscDispatch => terminal.esc_dispatch(input, &self.intermediates),
                 Action::Collect => self.intermediates.push(input),
                 Action::Param => match input {
                     ';' => self.params.push(0),
@@ -374,5 +385,80 @@ impl Parser {
                 Action::OscEnd => (),
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[derive(Debug, PartialEq)]
+    enum Event {
+        Print(char),
+        Execute(char),
+        Csi(char, Vec<char>, Vec<u16>),
+        Esc(char, Vec<char>),
+    }
+
+    #[derive(Debug, Default)]
+    struct TestEmulator {
+        events: Vec<Event>,
+    }
+
+    impl Emulator for TestEmulator {
+        fn print(&mut self, input: char) {
+            self.events.push(Event::Print(input));
+        }
+
+        fn execute(&mut self, input: char) {
+            self.events.push(Event::Execute(input));
+        }
+
+        fn csi_dispatch(&mut self, input: char, intermediates: &[char], params: &[u16]) {
+            self.events
+                .push(Event::Csi(input, intermediates.to_vec(), params.to_vec()));
+        }
+
+        fn esc_dispatch(&mut self, input: char, intermediates: &[char]) {
+            self.events.push(Event::Esc(input, intermediates.to_vec()));
+        }
+    }
+
+    #[test]
+    fn print() {
+        assert_eq!(
+            run("a b"),
+            vec![Event::Print('a'), Event::Print(' '), Event::Print('b')]
+        );
+    }
+
+    #[test]
+    fn execute() {
+        assert_eq!(run("\x08"), vec![Event::Execute('\u{08}')]);
+    }
+
+    #[test]
+    fn csi() {
+        assert_eq!(
+            run("\x1b[30;5;5mHi\x1b[0m"),
+            vec![
+                Event::Csi('m', vec![], vec![30, 5, 5]),
+                Event::Print('H'),
+                Event::Print('i'),
+                Event::Csi('m', vec![], vec![0]),
+            ]
+        )
+    }
+
+    #[test]
+    fn esc() {
+        assert_eq!(run("\x1b(A"), vec![Event::Esc('A', vec!['('])])
+    }
+
+    fn run(input: &str) -> Vec<Event> {
+        let mut parser = Parser::default();
+        let mut terminal = TestEmulator::default();
+        parser.feed_str(input, &mut terminal);
+        terminal.events
     }
 }

@@ -9,11 +9,15 @@ pub struct Line {
 }
 
 impl Line {
-    pub fn blank(cols: usize, pen: Pen) -> Self {
+    fn new(cells: Vec<Cell>) -> Self {
         Self {
-            cells: vec![Cell::blank(pen); cols],
+            cells,
             wrapped: false,
         }
+    }
+
+    pub fn blank(cols: usize, pen: Pen) -> Self {
+        Self::new(vec![Cell::blank(pen); cols])
     }
 
     pub fn print(&mut self, col: usize, cell: Cell) {
@@ -38,7 +42,8 @@ impl Line {
 
 #[cfg(test)]
 mod tests {
-    use crate::{line::Line, Cell, Pen};
+    use super::*;
+    use crate::Pen;
 
     #[test]
     fn print() {
@@ -47,9 +52,10 @@ mod tests {
         line.print(2, 'b'.into());
         line.print(3, 'c'.into());
 
-        let expected: Vec<Cell> = vec![' '.into(), 'a'.into(), 'b'.into(), 'c'.into()];
-
-        assert_eq!(expected, line.cells);
+        assert_eq!(
+            line.cells,
+            vec![' '.into(), 'a'.into(), 'b'.into(), 'c'.into()]
+        );
     }
 
     #[test]
@@ -57,22 +63,31 @@ mod tests {
         let mut line = Line::blank(4, Pen::default());
         line.insert(1, 2, 'a'.into());
 
-        let expected: Vec<Cell> = vec![' '.into(), 'a'.into(), 'a'.into(), ' '.into()];
-
-        assert_eq!(expected, line.cells);
+        assert_eq!(
+            line.cells,
+            vec![' '.into(), 'a'.into(), 'a'.into(), ' '.into()]
+        );
     }
 
     #[test]
     fn delete() {
-        let mut line = Line::blank(4, Pen::default());
-        line.print(0, 'a'.into());
-        line.print(1, 'b'.into());
-        line.print(2, 'c'.into());
-        line.print(3, 'd'.into());
+        let mut line = Line::new(vec!['a'.into(), 'b'.into(), 'c'.into(), 'd'.into()]);
         line.delete(1, 2, &Pen::default());
 
-        let expected: Vec<Cell> = vec!['a'.into(), 'd'.into(), ' '.into(), ' '.into()];
+        assert_eq!(
+            line.cells,
+            vec!['a'.into(), 'd'.into(), ' '.into(), ' '.into()]
+        );
+    }
 
-        assert_eq!(expected, line.cells);
+    #[test]
+    fn clear() {
+        let mut line = Line::new(vec!['a'.into(), 'b'.into(), 'c'.into(), 'd'.into()]);
+        line.clear(1..3, &Pen::default());
+
+        assert_eq!(
+            line.cells,
+            vec!['a'.into(), ' '.into(), ' '.into(), 'd'.into()]
+        );
     }
 }

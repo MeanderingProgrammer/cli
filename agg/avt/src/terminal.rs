@@ -3,6 +3,7 @@ use crate::cell::Cell;
 use crate::charset::Charset;
 use crate::cursor::Cursor;
 use crate::line::Line;
+use crate::parser::Emulator;
 use crate::pen::Intensity;
 use crate::tabs::Tabs;
 use crate::Pen;
@@ -121,8 +122,8 @@ impl Terminal {
 // https://github.com/alacritty/alacritty/blob/master/alacritty_terminal/src/term/mod.rs
 // https://invisible-island.net/xterm/ctlseqs/ctlseqs.html
 // https://en.wikipedia.org/wiki/ANSI_escape_code
-impl Terminal {
-    pub fn print(&mut self, input: char) {
+impl Emulator for Terminal {
+    fn print(&mut self, input: char) {
         let input = self.charsets[self.active_charset].map(input);
         let cell = Cell::new(input, self.pen.clone());
         if self.auto_wrap_mode && self.next_print_wraps {
@@ -153,7 +154,7 @@ impl Terminal {
         self.dirty = true;
     }
 
-    pub fn execute(&mut self, input: char) {
+    fn execute(&mut self, input: char) {
         match input {
             '\u{08}' => {
                 if self.next_print_wraps {
@@ -171,7 +172,7 @@ impl Terminal {
         }
     }
 
-    pub fn csi_dispatch(&mut self, params: &[u16], intermediates: &[char], input: char) {
+    fn csi_dispatch(&mut self, input: char, intermediates: &[char], params: &[u16]) {
         let mut params_iter = params.iter();
         let mut next_param = |default: usize| match params_iter.next() {
             Some(&param) if param != 0 => param as usize,
@@ -383,7 +384,7 @@ impl Terminal {
         }
     }
 
-    pub fn esc_dispatch(&mut self, intermediates: &[char], input: char) {
+    fn esc_dispatch(&mut self, input: char, intermediates: &[char]) {
         match (input, intermediates) {
             ('D', []) => self.linefeed(),
             ('E', []) => {
