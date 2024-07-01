@@ -2,7 +2,7 @@ use crate::fonts::{CachingFontDb, Variant};
 use crate::renderer::{text_attrs, Renderer, Settings};
 use crate::theme::Theme;
 use crate::vt::Frame;
-use avt::rgb::RGBA8;
+use avt::{rgb::RGBA8, Cell};
 use imgref::ImgVec;
 
 #[derive(Debug)]
@@ -72,7 +72,7 @@ impl Renderer for FontRenderer {
         // Handle the backgrounds & underlines first, ignore foreground characters
         for (row, chars) in frame.lines.iter().enumerate() {
             let (y_t, y_b) = self.y_bounds(row);
-            for (col, (_, pen)) in chars.iter().enumerate() {
+            for (col, Cell { pen, .. }) in chars.iter().enumerate() {
                 let (x_l, x_r) = self.x_bounds(col);
                 let attrs = text_attrs(pen, &frame.cursor, col, row, &self.theme);
                 if let Some(bg) = attrs.background {
@@ -95,7 +95,7 @@ impl Renderer for FontRenderer {
         // Now handle the characters
         for (row, chars) in frame.lines.iter().enumerate() {
             let (y_t, y_b) = self.y_bounds(row);
-            for (col, (ch, pen)) in chars.iter().enumerate() {
+            for (col, Cell { ch, pen }) in chars.iter().enumerate() {
                 let (x_l, x_r) = self.x_bounds(col);
                 if ch == &' ' {
                     continue;
@@ -132,7 +132,7 @@ impl Renderer for FontRenderer {
 
                         let idx = y * self.pixel_width + x;
                         if let (Some(r), Some(c)) = (pixel_row, pixel_col) {
-                            let pixel_pen = &frame.lines[r][c].1;
+                            let pixel_pen = &frame.lines[r][c].pen;
                             let attrs = text_attrs(pixel_pen, &frame.cursor, c, r, &self.theme);
 
                             let fg = attrs.foreground.alpha(255);

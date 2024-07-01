@@ -7,4 +7,3 @@ description = "asciinema virtual terminal"
 [dependencies]
 log = "0.4.22"
 rgb = "0.8.40"
-unicode-width = "0.1.13"

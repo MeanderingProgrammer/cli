@@ -1,5 +1,9 @@
 install: install-agg install-weather install-als install-update-asdf
 
+test-agg:
+  cd agg && cargo test
+  cd agg/avt && cargo test
+
 install-agg:
   cargo install --path agg
   asdf reshim rust

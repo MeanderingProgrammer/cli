@@ -2,7 +2,7 @@ use crate::renderer::{text_attrs, Renderer, Settings};
 use crate::theme::Theme;
 use crate::vt::Frame;
 use avt::rgb::{FromSlice, RGB8, RGBA8};
-use avt::Pen;
+use avt::{Cell, Pen};
 use imgref::ImgVec;
 use resvg::tiny_skia::{Pixmap, Transform};
 use resvg::usvg::{Options, Tree};
@@ -118,7 +118,7 @@ impl<'a> SvgRenderer<'a> {
         svg.push_str(r#"<g style="shape-rendering: optimizeSpeed">"#);
         for (row, line) in frame.lines.iter().enumerate() {
             let y = 100.0 * (row as f64) / (rows as f64 + 1.0);
-            for (col, (_, pen)) in line.iter().enumerate() {
+            for (col, Cell { pen, .. }) in line.iter().enumerate() {
                 let attrs = text_attrs(pen, &frame.cursor, col, row, &self.theme);
                 if attrs.background.is_none() {
                     continue;
@@ -146,7 +146,7 @@ impl<'a> SvgRenderer<'a> {
             let y = 100.0 * (row as f64) / (rows as f64 + 1.0);
             let mut did_dy = false;
             write!(svg, r#"<tspan y="{y:.3}%">"#).unwrap();
-            for (col, (ch, pen)) in line.iter().enumerate() {
+            for (col, Cell { ch, pen }) in line.iter().enumerate() {
                 if ch == &' ' {
                     continue;
                 }

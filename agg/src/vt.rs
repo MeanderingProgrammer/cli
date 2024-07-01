@@ -1,9 +1,9 @@
 use crate::events::Event;
-use avt::{Pen, Vt};
+use avt::{Cell, Vt};
 
 #[derive(Debug)]
 pub struct Frame {
-    pub lines: Vec<Vec<(char, Pen)>>,
+    pub lines: Vec<Vec<Cell>>,
     pub cursor: Option<(usize, usize)>,
 }
 
@@ -19,11 +19,7 @@ pub fn frames(
         let cursor = vt.cursor();
         if changed_lines || cursor != prev_cursor {
             prev_cursor = cursor;
-            let lines = vt
-                .view()
-                .iter()
-                .map(|line| line.cells().map(|cell| (cell.0, cell.1)).collect())
-                .collect();
+            let lines = vt.view().iter().map(|line| line.cells.clone()).collect();
             Some((time, Frame { lines, cursor }))
         } else {
             prev_cursor = cursor;

@@ -4,15 +4,50 @@ use crate::charset::Charset;
 use crate::cursor::Cursor;
 use crate::line::Line;
 use crate::pen::Intensity;
-use crate::saved_ctx::SavedCtx;
 use crate::tabs::Tabs;
 use crate::Pen;
+use std::cmp::{max, min};
 
 #[derive(Debug, Default)]
 enum BufferType {
     #[default]
     Primary,
     Alternate,
+}
+
+#[derive(Debug, Default)]
+enum CursorKeys {
+    #[default]
+    Normal,
+    Application,
+}
+
+#[derive(Debug, Clone, Default)]
+enum OriginMode {
+    #[default]
+    Absolute,
+    Relative,
+}
+
+#[derive(Debug)]
+struct SavedCtx {
+    cursor_col: usize,
+    cursor_row: usize,
+    pen: Pen,
+    origin_mode: OriginMode,
+    auto_wrap_mode: bool,
+}
+
+impl Default for SavedCtx {
+    fn default() -> Self {
+        Self {
+            cursor_col: 0,
+            cursor_row: 0,
+            pen: Pen::default(),
+            origin_mode: OriginMode::default(),
+            auto_wrap_mode: true,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -28,7 +63,8 @@ pub struct Terminal {
     active_charset: usize,
     tabs: Tabs,
     insert_mode: bool,
-    origin_mode: bool,
+    cursor_keys: CursorKeys,
+    origin_mode: OriginMode,
     auto_wrap_mode: bool,
     new_line_mode: bool,
     next_print_wraps: bool,
@@ -47,13 +83,14 @@ impl Terminal {
             buffer: Buffer::new(cols, rows, Pen::default()),
             other_buffer: Buffer::new(cols, rows, Pen::default()),
             active_buffer_type: BufferType::default(),
-            tabs: Tabs::new(cols),
             cursor: Cursor::default(),
             pen: Pen::default(),
             charsets: [Charset::default(), Charset::default()],
             active_charset: 0,
+            tabs: Tabs::new(cols),
             insert_mode: false,
-            origin_mode: false,
+            cursor_keys: CursorKeys::default(),
+            origin_mode: OriginMode::default(),
             auto_wrap_mode: true,
             new_line_mode: false,
             next_print_wraps: false,
@@ -87,7 +124,7 @@ impl Terminal {
 impl Terminal {
     pub fn print(&mut self, input: char) {
         let input = self.charsets[self.active_charset].map(input);
-        let cell = Cell(input, self.pen.clone());
+        let cell = Cell::new(input, self.pen.clone());
         if self.auto_wrap_mode && self.next_print_wraps {
             self.carriage_return();
             if self.cursor.row == self.bottom_margin {
@@ -152,7 +189,7 @@ impl Terminal {
             ('B', []) | ('e', []) => self.cursor_down(next_param(1)),
             ('b', []) => {
                 assert!(self.cursor.col > 0);
-                let char = self.buffer.view()[self.cursor.row].cells[self.cursor.col - 1].0;
+                let char = self.buffer.view()[self.cursor.row].cells[self.cursor.col - 1].ch;
                 for _ in 0..next_param(1) {
                     self.print(char);
                 }
@@ -191,15 +228,27 @@ impl Terminal {
                     match param {
                         4 => self.insert_mode = true,
                         20 => self.new_line_mode = true,
+                        // Normal cursor visibility
+                        34 => (),
                         _ => log::debug!("Unhandled 'h' param: {:?}", param),
+                    }
+                }
+            }
+            ('l', []) => {
+                for param in params_iter {
+                    match param {
+                        4 => self.insert_mode = false,
+                        20 => self.new_line_mode = false,
+                        _ => log::debug!("Unhandled 'l' param: {:?}", param),
                     }
                 }
             }
             ('h', ['?']) => {
                 for param in params_iter {
                     match param {
+                        1 => self.cursor_keys = CursorKeys::Application,
                         6 => {
-                            self.origin_mode = true;
+                            self.origin_mode = OriginMode::Relative;
                             self.move_cursor_home();
                         }
                         7 => self.auto_wrap_mode = true,
@@ -208,6 +257,23 @@ impl Terminal {
                         1048 => self.save_cursor(),
                         1049 => self.switch_to_alternate_buffer(true),
                         _ => log::debug!("Unhandled 'h?' param: {:?}", param),
+                    }
+                }
+            }
+            ('l', ['?']) => {
+                for param in params.iter() {
+                    match param {
+                        1 => self.cursor_keys = CursorKeys::Normal,
+                        6 => {
+                            self.origin_mode = OriginMode::Absolute;
+                            self.move_cursor_home();
+                        }
+                        7 => self.auto_wrap_mode = false,
+                        25 => self.cursor.visible = false,
+                        47 | 1047 => self.switch_to_primary_buffer(false),
+                        1048 => self.restore_cursor(),
+                        1049 => self.switch_to_primary_buffer(true),
+                        _ => log::debug!("Unhandled 'l?' param: {:?}", param),
                     }
                 }
             }
@@ -232,31 +298,6 @@ impl Terminal {
                 };
                 self.buffer.scroll_down(range, next_param(1), &self.pen);
                 self.dirty = true;
-            }
-            ('l', []) => {
-                for param in params_iter {
-                    match param {
-                        4 => self.insert_mode = false,
-                        20 => self.new_line_mode = false,
-                        _ => log::debug!("Unhandled 'l' param: {:?}", param),
-                    }
-                }
-            }
-            ('l', ['?']) => {
-                for param in params.iter() {
-                    match param {
-                        6 => {
-                            self.origin_mode = false;
-                            self.move_cursor_home();
-                        }
-                        7 => self.auto_wrap_mode = false,
-                        25 => self.cursor.visible = false,
-                        47 | 1047 => self.switch_to_primary_buffer(false),
-                        1048 => self.restore_cursor(),
-                        1049 => self.switch_to_primary_buffer(true),
-                        _ => log::debug!("Unhandled 'l?' param: {:?}", param),
-                    }
-                }
             }
             ('M', []) => {
                 let range = if self.cursor.row <= self.bottom_margin {
@@ -361,7 +402,7 @@ impl Terminal {
             ('8', []) => self.restore_cursor(),
             ('c', []) => self.hard_reset(),
             ('8', ['#']) => {
-                let cell = Cell('\u{45}', Pen::default());
+                let cell: Cell = '\u{45}'.into();
                 for row in 0..self.rows {
                     for col in 0..self.cols {
                         self.buffer.print((col, row), cell.clone());
@@ -432,15 +473,15 @@ impl Terminal {
     fn move_cursor_to_row(&mut self, row: usize) {
         let top = self.actual_top_margin();
         let bottom = self.actual_bottom_margin();
-        let row = (top + row).max(top).min(bottom);
+        let row = min(max(top + row, top), bottom);
         self.do_move_cursor_to_row(row);
     }
 
     fn cursor_down(&mut self, n: usize) {
         let new_y = if self.cursor.row > self.bottom_margin {
-            (self.rows - 1).min(self.cursor.row + n)
+            min(self.rows - 1, self.cursor.row + n)
         } else {
-            self.bottom_margin.min(self.cursor.row + n)
+            min(self.bottom_margin, self.cursor.row + n)
         };
         self.do_move_cursor_to_row(new_y);
     }
@@ -448,9 +489,9 @@ impl Terminal {
     fn cursor_up(&mut self, n: usize) {
         let mut new_y = (self.cursor.row as isize) - (n as isize);
         new_y = if self.cursor.row < self.top_margin {
-            new_y.max(0)
+            max(new_y, 0)
         } else {
-            new_y.max(self.top_margin as isize)
+            max(new_y, self.top_margin as isize)
         };
         self.do_move_cursor_to_row(new_y as usize);
     }
@@ -461,24 +502,22 @@ impl Terminal {
     }
 
     fn do_move_cursor_to_row(&mut self, row: usize) {
-        self.cursor.col = self.cursor.col.min(self.cols - 1);
+        self.cursor.col = min(self.cursor.col, self.cols - 1);
         self.cursor.row = row;
         self.next_print_wraps = false;
     }
 
     fn actual_top_margin(&self) -> usize {
-        if self.origin_mode {
-            self.top_margin
-        } else {
-            0
+        match self.origin_mode {
+            OriginMode::Absolute => 0,
+            OriginMode::Relative => self.top_margin,
         }
     }
 
     fn actual_bottom_margin(&self) -> usize {
-        if self.origin_mode {
-            self.bottom_margin
-        } else {
-            self.rows - 1
+        match self.origin_mode {
+            OriginMode::Absolute => self.rows - 1,
+            OriginMode::Relative => self.bottom_margin,
         }
     }
 
@@ -536,10 +575,10 @@ impl Terminal {
     }
 
     fn save_cursor(&mut self) {
-        self.saved_ctx.cursor_col = self.cursor.col.min(self.cols - 1);
+        self.saved_ctx.cursor_col = min(self.cursor.col, self.cols - 1);
         self.saved_ctx.cursor_row = self.cursor.row;
         self.saved_ctx.pen = self.pen.clone();
-        self.saved_ctx.origin_mode = self.origin_mode;
+        self.saved_ctx.origin_mode = self.origin_mode.clone();
         self.saved_ctx.auto_wrap_mode = self.auto_wrap_mode;
     }
 
@@ -559,7 +598,7 @@ impl Terminal {
         self.cursor.col = self.saved_ctx.cursor_col;
         self.cursor.row = self.saved_ctx.cursor_row;
         self.pen = self.saved_ctx.pen.clone();
-        self.origin_mode = self.saved_ctx.origin_mode;
+        self.origin_mode = self.saved_ctx.origin_mode.clone();
         self.auto_wrap_mode = self.saved_ctx.auto_wrap_mode;
         self.next_print_wraps = false;
     }
@@ -570,7 +609,7 @@ impl Terminal {
         self.charsets = [Charset::default(), Charset::default()];
         self.active_charset = 0;
         self.insert_mode = false;
-        self.origin_mode = false;
+        self.origin_mode = OriginMode::default();
         self.top_margin = 0;
         self.bottom_margin = self.rows - 1;
         self.saved_ctx = SavedCtx::default();
@@ -586,7 +625,7 @@ impl Terminal {
         self.active_charset = 0;
         self.tabs = Tabs::new(self.cols);
         self.insert_mode = false;
-        self.origin_mode = false;
+        self.origin_mode = OriginMode::default();
         self.auto_wrap_mode = true;
         self.new_line_mode = false;
         self.next_print_wraps = false;

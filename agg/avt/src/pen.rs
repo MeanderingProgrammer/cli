@@ -1,19 +1,19 @@
 use crate::Color;
 
 #[derive(Debug, Clone, Default, PartialEq)]
-pub struct Pen {
-    pub foreground: Option<Color>,
-    pub background: Option<Color>,
-    pub intensity: Intensity,
-    pub attrs: u8,
-}
-
-#[derive(Debug, Clone, Default, PartialEq)]
 pub enum Intensity {
     #[default]
     Normal,
     Bold,
     Faint,
+}
+
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Pen {
+    pub foreground: Option<Color>,
+    pub background: Option<Color>,
+    pub intensity: Intensity,
+    pub attrs: u8,
 }
 
 const ITALIC_MASK: u8 = 1;

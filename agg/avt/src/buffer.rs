@@ -1,6 +1,7 @@
 use crate::cell::Cell;
 use crate::line::Line;
 use crate::Pen;
+use std::cmp::min;
 use std::ops::Range;
 
 pub enum EraseMode {
@@ -35,12 +36,13 @@ impl Buffer {
     }
 
     pub fn insert(&mut self, (col, row): (usize, usize), n: usize, cell: Cell) {
-        let n = n.min(self.cols - col);
-        self.row_mut(row).insert(col, n, cell);
+        let n = min(n, self.cols - col);
+        let line = &mut self.row_mut(row);
+        line.insert(col, n, cell);
     }
 
     pub fn delete(&mut self, (col, row): (usize, usize), n: usize, pen: &Pen) {
-        let n = n.min(self.cols - col);
+        let n = min(n, self.cols - col);
         let line = &mut self.row_mut(row);
         line.delete(col, n, pen);
         line.wrapped = false;
@@ -48,8 +50,8 @@ impl Buffer {
 
     pub fn erase(&mut self, (col, row): (usize, usize), mode: EraseMode, pen: &Pen) {
         match mode {
-            EraseMode::NextChars(mut n) => {
-                n = n.min(self.cols - col);
+            EraseMode::NextChars(n) => {
+                let n = min(n, self.cols - col);
                 let end = col + n;
                 let clear_wrap = end == self.cols;
                 let line = &mut self.row_mut(row);
@@ -66,7 +68,7 @@ impl Buffer {
                 self.clear((row + 1)..self.rows, pen);
             }
             EraseMode::FromStartOfViewToCursor => {
-                let range = 0..(col + 1).min(self.cols);
+                let range = 0..min(col + 1, self.cols);
                 self.row_mut(row).clear(range, pen);
                 self.clear(0..row, pen);
             }
@@ -78,7 +80,7 @@ impl Buffer {
                 line.wrapped = false;
             }
             EraseMode::FromStartOfLineToCursor => {
-                let range = 0..(col + 1).min(self.cols);
+                let range = 0..min(col + 1, self.cols);
                 self.row_mut(row).clear(range, pen);
             }
             EraseMode::WholeLine => {
@@ -92,13 +94,13 @@ impl Buffer {
 
     pub fn scroll_up(&mut self, range: Range<usize>, n: usize, pen: &Pen) {
         let (start, end) = (range.start, range.end);
-        let n = n.min(end - start);
+        let n = min(n, end - start);
         if end - 1 < self.rows - 1 {
             self.row_mut(end - 1).wrapped = false;
         }
         if start == 0 {
             if end == self.rows {
-                self.extend(n, self.cols);
+                self.extend(n);
             } else {
                 let line = Line::blank(self.cols, pen.clone());
                 let index = self.lines.len() - self.rows + end;
@@ -115,7 +117,7 @@ impl Buffer {
 
     pub fn scroll_down(&mut self, range: Range<usize>, n: usize, pen: &Pen) {
         let (start, end) = (range.start, range.end);
-        let n = n.min(end - start);
+        let n = min(n, end - start);
         self.view_mut()[range].rotate_right(n);
         self.clear(start..start + n, pen);
         if start > 0 {
@@ -125,7 +127,8 @@ impl Buffer {
     }
 
     pub fn view(&self) -> &[Line] {
-        &self.lines[self.lines.len() - self.rows..]
+        let len = self.lines.len();
+        &self.lines[len - self.rows..]
     }
 
     fn view_mut(&mut self) -> &mut [Line] {
@@ -142,8 +145,8 @@ impl Buffer {
         self.view_mut()[range].fill(line);
     }
 
-    fn extend(&mut self, n: usize, cols: usize) {
-        let line = Line::blank(cols, Pen::default());
+    fn extend(&mut self, n: usize) {
+        let line = Line::blank(self.cols, Pen::default());
         let filler = std::iter::repeat(line).take(n);
         self.lines.extend(filler);
     }

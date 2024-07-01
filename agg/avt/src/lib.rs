@@ -1,3 +1,4 @@
+pub use cell::Cell;
 pub use color::Color;
 pub use pen::Pen;
 pub use rgb;
@@ -11,7 +12,6 @@ mod cursor;
 mod line;
 mod parser;
 mod pen;
-mod saved_ctx;
 mod tabs;
 mod terminal;
 mod vt;

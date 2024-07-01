@@ -1,19 +1,23 @@
 use crate::pen::Pen;
-use unicode_width::UnicodeWidthChar;
 
-#[derive(Debug, Clone)]
-pub struct Cell(pub char, pub Pen);
+#[derive(Debug, Clone, PartialEq)]
+pub struct Cell {
+    pub ch: char,
+    pub pen: Pen,
+}
+
+impl From<char> for Cell {
+    fn from(value: char) -> Self {
+        Self::new(value, Pen::default())
+    }
+}
 
 impl Cell {
+    pub fn new(ch: char, pen: Pen) -> Self {
+        Self { ch, pen }
+    }
+
     pub fn blank(pen: Pen) -> Self {
-        Self(' ', pen)
-    }
-
-    pub fn is_default(&self) -> bool {
-        self.0 == ' ' && self.1.is_default()
-    }
-
-    pub fn char_width(&self) -> usize {
-        UnicodeWidthChar::width(self.0).unwrap_or(0)
+        Self::new(' ', pen)
     }
 }
