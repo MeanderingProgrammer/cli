@@ -8,4 +8,3 @@ mod fonts;
 mod renderer;
 mod runner;
 mod theme;
-mod vt;

@@ -1,6 +1,6 @@
+use crate::asciicast::Frame;
 use crate::fonts::CachingFontDb;
 use crate::theme::Theme;
-use crate::vt::Frame;
 use avt::rgb::{RGB8, RGBA8};
 use avt::{Color, Pen};
 use clap::ValueEnum;

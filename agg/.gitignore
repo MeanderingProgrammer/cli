@@ -1,4 +1,3 @@
 /target/
 /avt/target/
-*.cast
-*.gif
+/data/

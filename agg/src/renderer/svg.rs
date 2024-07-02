@@ -1,6 +1,6 @@
+use crate::asciicast::Frame;
 use crate::renderer::{text_attrs, Renderer, Settings};
 use crate::theme::Theme;
-use crate::vt::Frame;
 use avt::rgb::{FromSlice, RGB8, RGBA8};
 use avt::{Cell, Pen};
 use imgref::ImgVec;

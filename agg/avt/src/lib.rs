@@ -1,6 +1,6 @@
 pub use cell::Cell;
 pub use color::Color;
-pub use pen::Pen;
+pub use pen::{Intensity, Pen};
 pub use rgb;
 pub use vt::Vt;
 

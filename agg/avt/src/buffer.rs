@@ -22,7 +22,7 @@ pub struct Buffer {
 }
 
 impl Buffer {
-    pub fn new(cols: usize, rows: usize, pen: Pen) -> Self {
+    pub fn new(cols: usize, rows: usize, pen: &Pen) -> Self {
         let lines = vec![Line::blank(cols, pen); rows];
         Self { cols, rows, lines }
     }
@@ -102,7 +102,7 @@ impl Buffer {
             if end == self.rows {
                 self.extend(n);
             } else {
-                let line = Line::blank(self.cols, pen.clone());
+                let line = Line::blank(self.cols, pen);
                 let index = self.lines.len() - self.rows + end;
                 for _ in 0..n {
                     self.lines.insert(index, line.clone());
@@ -141,12 +141,12 @@ impl Buffer {
     }
 
     fn clear(&mut self, range: Range<usize>, pen: &Pen) {
-        let line = Line::blank(self.cols, pen.clone());
+        let line = Line::blank(self.cols, pen);
         self.view_mut()[range].fill(line);
     }
 
     fn extend(&mut self, n: usize) {
-        let line = Line::blank(self.cols, Pen::default());
+        let line = Line::blank(self.cols, &Pen::default());
         let filler = std::iter::repeat(line).take(n);
         self.lines.extend(filler);
     }

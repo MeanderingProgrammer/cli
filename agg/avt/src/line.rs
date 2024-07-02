@@ -16,7 +16,7 @@ impl Line {
         }
     }
 
-    pub fn blank(cols: usize, pen: Pen) -> Self {
+    pub fn blank(cols: usize, pen: &Pen) -> Self {
         Self::new(vec![Cell::blank(pen); cols])
     }
 
@@ -32,11 +32,11 @@ impl Line {
     pub fn delete(&mut self, col: usize, n: usize, pen: &Pen) {
         self.cells[col..].rotate_left(n);
         let start = self.cells.len() - n;
-        self.cells[start..].fill(Cell::blank(pen.clone()));
+        self.cells[start..].fill(Cell::blank(pen));
     }
 
     pub fn clear(&mut self, range: Range<usize>, pen: &Pen) {
-        self.cells[range].fill(Cell::blank(pen.clone()));
+        self.cells[range].fill(Cell::blank(pen));
     }
 }
 
@@ -47,7 +47,7 @@ mod tests {
 
     #[test]
     fn print() {
-        let mut line = Line::blank(4, Pen::default());
+        let mut line = Line::blank(4, &Pen::default());
         line.print(1, 'a'.into());
         line.print(2, 'b'.into());
         line.print(3, 'c'.into());
@@ -60,7 +60,7 @@ mod tests {
 
     #[test]
     fn insert() {
-        let mut line = Line::blank(4, Pen::default());
+        let mut line = Line::blank(4, &Pen::default());
         line.insert(1, 2, 'a'.into());
 
         assert_eq!(

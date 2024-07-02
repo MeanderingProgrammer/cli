@@ -1,7 +1,7 @@
+use crate::asciicast::Frame;
 use crate::fonts::{CachingFontDb, Variant};
 use crate::renderer::{text_attrs, Renderer, Settings};
 use crate::theme::Theme;
-use crate::vt::Frame;
 use avt::{rgb::RGBA8, Cell};
 use imgref::ImgVec;
 

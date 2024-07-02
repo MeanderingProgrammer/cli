@@ -1,4 +1,4 @@
-use crate::{asciicast, events, fonts, renderer, vt, RendererName, ThemeName};
+use crate::{asciicast, fonts, renderer, RendererName, ThemeName};
 use anyhow::{bail, Ok, Result};
 use gifski::progress::ProgressBar;
 use std::fs::File;
@@ -18,18 +18,15 @@ pub struct Runner {
 
 impl Runner {
     pub fn run(&self, input: File, output: File) -> Result<()> {
-        let (header, events) = asciicast::open(input)?;
+        let reader = asciicast::Reader {
+            file: input,
+            speed: self.speed,
+            fps_cap: self.fps_cap,
+        };
+        let (header, count, frames) = reader.parse()?;
 
         let terminal_size = header.terminal_size;
         log::info!("terminal size: {}x{}", terminal_size.0, terminal_size.1);
-
-        let stdout = std::iter::once(events::Event::default()).chain(events);
-        let stdout = events::accelerate(stdout, self.speed);
-        let stdout = events::batch(stdout, self.fps_cap);
-        let stdout: Vec<events::Event> = stdout.collect();
-
-        let count = stdout.len() as u64;
-        let frames = vt::frames(stdout.into_iter(), terminal_size);
 
         let font_db = fonts::CachingFontDb::default();
         let font_families = font_db.available_fonts(&self.fonts);
@@ -73,9 +70,9 @@ impl Runner {
                 println!();
                 result
             });
-            for (i, (time, frame)) in frames.enumerate() {
+            for (i, frame) in frames.enumerate() {
+                let time = if i == 0 { 0.0 } else { frame.time };
                 let image = renderer.render(frame);
-                let time = if i == 0 { 0.0 } else { time };
                 collector.add_frame_rgba(i, image, time + self.last_frame_duration)?;
             }
             drop(collector);
@@ -84,7 +81,7 @@ impl Runner {
         })?;
 
         let elapsed = start_time.elapsed().as_secs_f32();
-        log::info!("rendering finished in {}s", elapsed);
+        log::info!("Rendering finished in {}s", elapsed);
 
         Ok(())
     }
