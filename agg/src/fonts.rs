@@ -116,7 +116,10 @@ impl CachingFontDb {
             match self.get_font_cache((name.clone(), key.1.clone())) {
                 Some(font) => {
                     if font.has_glyph(key.0) {
-                        let (metrics, bitmap) = font.rasterize(key.0, font_size);
+                        let (metrics, mut bitmap) = font.rasterize(key.0, font_size);
+                        if key.0 == '▋' {
+                            bitmap = bitmap.into_iter().map(|_| 255).collect();
+                        }
                         Some((name, metrics, bitmap))
                     } else {
                         None

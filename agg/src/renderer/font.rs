@@ -51,22 +51,22 @@ impl FontRenderer {
 
     fn y_bounds(&self, row: usize) -> (usize, usize) {
         let margin = self.row_height / 2.0;
-        let top = (margin + row as f32 * self.row_height).round() as usize;
-        let bottom = (margin + (row + 1) as f32 * self.row_height).round() as usize;
+        let top = (margin + row as f32 * self.row_height).floor() as usize;
+        let bottom = (margin + (row + 1) as f32 * self.row_height).ceil() as usize;
         (top, bottom)
     }
 
     fn x_bounds(&self, col: usize) -> (usize, usize) {
         let margin = self.col_width;
-        let left = (margin + col as f32 * self.col_width).round() as usize;
-        let right = (margin + (col + 1) as f32 * self.col_width).round() as usize;
+        let left = (margin + col as f32 * self.col_width).floor() as usize;
+        let right = (margin + (col + 1) as f32 * self.col_width).ceil() as usize;
         (left, right)
     }
 }
 
 impl Renderer for FontRenderer {
     fn render(&mut self, frame: Frame) -> ImgVec<RGBA8> {
-        let initial_color = self.theme.background.alpha(255);
+        let initial_color = self.theme.background.with_alpha(255);
         let mut buf: Vec<RGBA8> = vec![initial_color; self.pixel_width * self.pixel_height];
 
         // Handle the backgrounds & underlines first, ignore foreground characters
@@ -76,16 +76,16 @@ impl Renderer for FontRenderer {
                 let (x_l, x_r) = self.x_bounds(col);
                 let attrs = text_attrs(pen, &frame.cursor, col, row, &self.theme);
                 if let Some(bg) = attrs.background {
-                    for y in y_t..y_b {
+                    for y in y_t..=y_b {
                         for x in x_l..x_r {
-                            buf[y * self.pixel_width + x] = bg.alpha(255);
+                            buf[y * self.pixel_width + x] = bg.with_alpha(255);
                         }
                     }
                 }
                 if pen.is_underline() {
-                    let fg = attrs.foreground.alpha(255);
+                    let fg = attrs.foreground.with_alpha(255);
                     let y = y_t + (self.font_size * 1.2).round() as usize;
-                    for x in x_l..x_r {
+                    for x in x_l..=x_r {
                         buf[y * self.pixel_width + x] = fg;
                     }
                 }
@@ -135,7 +135,7 @@ impl Renderer for FontRenderer {
                             let pixel_pen = &frame.lines[r][c].pen;
                             let attrs = text_attrs(pixel_pen, &frame.cursor, c, r, &self.theme);
 
-                            let fg = attrs.foreground.alpha(255);
+                            let fg = attrs.foreground.with_alpha(255);
                             let bg = buf[idx];
                             let ratio = bitmap[bmap_y * metrics.width + bmap_x] as u16;
                             buf[idx] = RGBA8::new(

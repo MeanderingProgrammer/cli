@@ -24,6 +24,7 @@ demo-agg: install-agg
   just demo-agg-single "frame"
   just demo-agg-single "demo"
   just demo-agg-single "heading"
+  just demo-agg-single "temp"
 
 demo-agg-single file:
   rm -f agg/data/{{file}}.gif
