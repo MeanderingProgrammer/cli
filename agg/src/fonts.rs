@@ -35,6 +35,7 @@ pub struct CachingFontDb {
     pub db: Database,
     font_cache: HashMap<FontVariant, Option<Font>>,
     glyph_cache: HashMap<CharVariant, Option<Glyph>>,
+    fix_glyphs: Vec<char>,
 }
 
 impl Default for CachingFontDb {
@@ -45,6 +46,7 @@ impl Default for CachingFontDb {
             db,
             font_cache: HashMap::new(),
             glyph_cache: HashMap::new(),
+            fix_glyphs: vec!['▋', '│', '─', '┌', '┬', '┐', '├', '┼', '┤', '└', '┴', '┘'],
         }
     }
 }
@@ -117,8 +119,11 @@ impl CachingFontDb {
                 Some(font) => {
                     if font.has_glyph(key.0) {
                         let (metrics, mut bitmap) = font.rasterize(key.0, font_size);
-                        if key.0 == '▋' {
-                            bitmap = bitmap.into_iter().map(|_| 255).collect();
+                        if self.fix_glyphs.contains(&key.0) {
+                            bitmap = bitmap
+                                .into_iter()
+                                .map(|v| if v > 0 { 255 } else { 0 })
+                                .collect();
                         }
                         Some((name, metrics, bitmap))
                     } else {
