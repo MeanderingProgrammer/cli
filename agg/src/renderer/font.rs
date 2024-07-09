@@ -50,16 +50,16 @@ impl FontRenderer {
     }
 
     fn y_bounds(&self, row: usize) -> (usize, usize) {
-        let margin = self.row_height / 2.0;
-        let top = (margin + row as f32 * self.row_height).floor() as usize;
-        let bottom = (margin + (row + 1) as f32 * self.row_height).ceil() as usize;
+        let margin = (self.row_height / 2.0).round() as usize;
+        let top = margin + (row as f32 * self.row_height).round() as usize;
+        let bottom = margin + ((row + 1) as f32 * self.row_height).round() as usize;
         (top, bottom)
     }
 
     fn x_bounds(&self, col: usize) -> (usize, usize) {
         let margin = self.col_width;
-        let left = (margin + col as f32 * self.col_width).floor() as usize;
-        let right = (margin + (col + 1) as f32 * self.col_width).ceil() as usize;
+        let left = (margin + col as f32 * self.col_width).round() as usize;
+        let right = (margin + (col + 1) as f32 * self.col_width).round() as usize;
         (left, right)
     }
 }
@@ -76,7 +76,7 @@ impl Renderer for FontRenderer {
                 let (x_l, x_r) = self.x_bounds(col);
                 let attrs = text_attrs(pen, &frame.cursor, col, row, &self.theme);
                 if let Some(bg) = attrs.background {
-                    for y in y_t..=y_b {
+                    for y in y_t..y_b {
                         for x in x_l..x_r {
                             buf[y * self.pixel_width + x] = bg.with_alpha(255);
                         }
@@ -85,7 +85,7 @@ impl Renderer for FontRenderer {
                 if pen.is_underline() {
                     let fg = attrs.foreground.with_alpha(255);
                     let y = y_t + (self.font_size * 1.2).round() as usize;
-                    for x in x_l..=x_r {
+                    for x in x_l..x_r {
                         buf[y * self.pixel_width + x] = fg;
                     }
                 }
@@ -120,7 +120,7 @@ impl Renderer for FontRenderer {
                         continue;
                     }
                     let y = y as usize;
-                    let pixel_row = pixel_position(row, frame.lines.len() - 1, y, y_t, y_b);
+                    let pixel_row = pixel_position(row, frame.lines.len() - 1, y, y_t - 1, y_b);
 
                     for bmap_x in 0..metrics.width {
                         let x = x_offset + bmap_x as i32;
