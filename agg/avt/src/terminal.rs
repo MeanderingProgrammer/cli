@@ -5,7 +5,7 @@ use crate::cursor::Cursor;
 use crate::line::Line;
 use crate::parser::Emulator;
 use crate::tabs::Tabs;
-use crate::{Intensity, Pen};
+use crate::{Color, Intensity, Pen};
 use std::cmp::{max, min};
 
 #[derive(Debug, Default)]
@@ -308,36 +308,34 @@ impl Emulator for Terminal {
                 self.buffer.scroll_up(range, next_param(1), &self.pen);
                 self.dirty = true;
             }
-            ('m', []) => match params {
-                [0] => self.pen = Pen::default(),
-                [1] => self.pen.intensity = Intensity::Bold,
-                [0, 1] => {
-                    self.pen = Pen::default();
-                    self.pen.intensity = Intensity::Bold;
+            ('m', []) => {
+                while let Some(param) = params_iter.next() {
+                    match param {
+                        0 => self.pen = Pen::default(),
+                        1 => self.pen.intensity = Intensity::Bold,
+                        2 => self.pen.intensity = Intensity::Faint,
+                        3 => self.pen.set_italic(),
+                        4 => self.pen.set_underline(),
+                        5 => self.pen.set_blink(),
+                        7 => self.pen.set_inverse(),
+                        9 => self.pen.set_strikethrough(),
+                        21..=22 => self.pen.intensity = Intensity::Normal,
+                        23 => self.pen.unset_italic(),
+                        24 => self.pen.unset_underline(),
+                        25 => self.pen.unset_blink(),
+                        27 => self.pen.unset_inverse(),
+                        30..=37 => self.pen.foreground = Some((params[0] - 30).into()),
+                        38 => self.pen.foreground = Self::parse_sgr_color(&mut params_iter),
+                        39 => self.pen.foreground = None,
+                        40..=47 => self.pen.background = Some((params[0] - 40).into()),
+                        48 => self.pen.background = Self::parse_sgr_color(&mut params_iter),
+                        49 => self.pen.background = None,
+                        90..=97 => self.pen.foreground = Some((params[0] - 90 + 8).into()),
+                        100..=107 => self.pen.background = Some((params[0] - 100 + 8).into()),
+                        _ => panic!("CSI 'm' | {:?}", params),
+                    }
                 }
-                [2] => self.pen.intensity = Intensity::Faint,
-                [3] => self.pen.set_italic(),
-                [4] => self.pen.set_underline(),
-                [5] => self.pen.set_blink(),
-                [7] => self.pen.set_inverse(),
-                [9] => self.pen.set_strikethrough(),
-                [21..=22] => self.pen.intensity = Intensity::Normal,
-                [23] => self.pen.unset_italic(),
-                [24] => self.pen.unset_underline(),
-                [25] => self.pen.unset_blink(),
-                [27] => self.pen.unset_inverse(),
-                [30..=37] => self.pen.foreground = Some((params[0] - 30).into()),
-                [38, 2, r, g, b] => self.pen.foreground = Some((*r, *g, *b).into()),
-                [38, 5, i] => self.pen.foreground = Some((*i).into()),
-                [39] => self.pen.foreground = None,
-                [40..=47] => self.pen.background = Some((params[0] - 40).into()),
-                [48, 2, r, g, b] => self.pen.background = Some((*r, *g, *b).into()),
-                [48, 5, i] => self.pen.background = Some((*i).into()),
-                [49] => self.pen.background = None,
-                [90..=97] => self.pen.foreground = Some((params[0] - 90 + 8).into()),
-                [100..=107] => self.pen.background = Some((params[0] - 100 + 8).into()),
-                _ => panic!("CSI 'm' | {:?}", params),
-            },
+            }
             ('P', []) => {
                 if self.cursor.col >= self.cols {
                     self.move_cursor_to_col(self.cols - 1);
@@ -421,6 +419,16 @@ impl Emulator for Terminal {
             // unset_keypad_application_mode
             ('>', []) => (),
             _ => panic!("ESC: {:?} | {:?}", input, interims),
+        }
+    }
+}
+
+impl Terminal {
+    fn parse_sgr_color(params: &mut dyn Iterator<Item = &u16>) -> Option<Color> {
+        match params.next() {
+            Some(2) => Some(((*params.next()?), (*params.next()?), (*params.next()?)).into()),
+            Some(5) => Some((*params.next()?).into()),
+            _ => None,
         }
     }
 }
