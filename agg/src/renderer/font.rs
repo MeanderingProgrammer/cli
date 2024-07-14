@@ -105,10 +105,7 @@ impl Renderer for FontRenderer {
                     self.font_size,
                     &self.font_families,
                 );
-                if glyph.is_none() {
-                    continue;
-                }
-                let (_, metrics, bitmap) = glyph.unwrap();
+                let (_, metrics, bitmap) = glyph.unwrap_or_else(|| panic!("No glyph for: {ch}"));
 
                 let y_offset =
                     (y_t + self.font_size as usize - metrics.height) as i32 - metrics.ymin;
