@@ -46,7 +46,9 @@ impl Default for CachingFontDb {
             db,
             font_cache: HashMap::new(),
             glyph_cache: HashMap::new(),
-            fix_glyphs: vec!['▋', '│', '─', '┌', '┬', '┐', '├', '┼', '┤', '└', '┴', '┘'],
+            fix_glyphs: vec![
+                '▋', '│', '━', '─', '┌', '┬', '┐', '├', '┼', '┤', '└', '┴', '┘',
+            ],
         }
     }
 }
