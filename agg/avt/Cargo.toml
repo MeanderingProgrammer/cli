@@ -6,4 +6,4 @@ description = "asciinema virtual terminal"
 
 [dependencies]
 log = "0.4.22"
-rgb = "0.8.44"
+rgb = "0.8.48"

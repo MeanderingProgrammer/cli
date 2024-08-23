@@ -80,6 +80,7 @@ func NewAliasGroups() AliasGroups {
 				"~/.config/helix/",
 				"~/.config/kitty/",
 				"~/.config/lang/",
+				"~/.config/lazygit/",
 				"~/.config/npm/",
 				"~/.config/nvim/",
 				"~/.config/shell/",
