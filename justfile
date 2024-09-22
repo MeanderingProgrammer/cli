@@ -1,24 +1,27 @@
 install: install-agg install-weather install-als install-update-asdf
 
-test-agg:
-  cd agg && cargo test
-  cd agg/avt && cargo test
-
 install-agg:
   cargo install --path agg
-  asdf reshim rust
+  just reshim rust
 
 install-weather:
   cargo install --path weather
-  asdf reshim rust
+  just reshim rust
 
 install-als:
   cd als && go install
-  asdf reshim golang
+  just reshim golang
 
 install-update-asdf:
   cd update-asdf && go install
-  asdf reshim golang
+  just reshim golang
+
+reshim language:
+  [[ -x "$(command -v asdf)" ]] && asdf reshim {{language}} || echo "No asdf to reshim"
+
+test-agg:
+  cd agg && cargo test
+  cd agg/avt && cargo test
 
 demo-agg: install-agg
   just demo-agg-single "frame"
