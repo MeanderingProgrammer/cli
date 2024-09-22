@@ -17,6 +17,7 @@ install-update-asdf:
   just reshim golang
 
 reshim language:
+  #!/bin/bash
   [[ -x "$(command -v asdf)" ]] && asdf reshim {{language}} || echo "No asdf to reshim"
 
 test-agg:
