@@ -46,6 +46,11 @@ func NewAsdf() *Asdf {
 	}
 }
 
+func (a *Asdf) Exists() bool {
+	_, err := exec.LookPath(a.command)
+	return err == nil
+}
+
 func (a *Asdf) Plugins() []*Plugin {
 	// golang          1.22.0          ~/.tool-versions
 	// java            temurin-21.0.1+12.0.LTS ~/.tool-versions
@@ -90,6 +95,11 @@ func (a *Asdf) runCommand(arg ...string) string {
 
 func main() {
 	asdf := NewAsdf()
+	if !asdf.Exists() {
+		fmt.Println("asdf command does not exist")
+		return
+	}
+
 	plugins := asdf.Plugins()
 
 	namePlugin := make(map[string]*Plugin)
