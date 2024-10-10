@@ -8,41 +8,40 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/huh"
+	"github.com/charmbracelet/lipgloss"
+)
+
+const (
+	Red    = lipgloss.Color("#db4b4b")
+	Purple = lipgloss.Color("#9773f2")
+	Orange = lipgloss.Color("#ff9e64")
+	Cyan   = lipgloss.Color("#73daca")
+	Green  = lipgloss.Color("#6bce69")
+)
+
+var (
+	Error   = lipgloss.NewStyle().Bold(true).Foreground(Red).Render
+	Title   = lipgloss.NewStyle().Foreground(Purple).Render
+	Section = lipgloss.NewStyle().MarginLeft(2).Foreground(Orange).Render
+	Skip    = lipgloss.NewStyle().MarginLeft(4).Foreground(Cyan).Render
+	Action  = lipgloss.NewStyle().MarginLeft(4).Foreground(Green).Render
 )
 
 type Plugin struct {
 	name    string
 	current string
-	latest  string
-	updated bool
-}
-
-func NewPlugin(name string, current string) *Plugin {
-	return &Plugin{
-		name:    name,
-		current: current,
-		updated: false,
-	}
-}
-
-func (p *Plugin) SetLatest(latest string) {
-	p.latest = latest
-}
-
-func (p *Plugin) SetUpdated(updated bool) {
-	p.updated = updated
 }
 
 type Asdf struct {
-	command          string
-	unhandledPlugins []string
+	command   string
+	unhandled []string
 }
 
 func NewAsdf() *Asdf {
 	return &Asdf{
 		command: "asdf",
 		// Some plugins have complex versions so latest is not supported
-		unhandledPlugins: []string{"java"},
+		unhandled: []string{"java"},
 	}
 }
 
@@ -55,13 +54,15 @@ func (a *Asdf) Plugins() []*Plugin {
 	// golang          1.22.0          ~/.tool-versions
 	// java            temurin-21.0.1+12.0.LTS ~/.tool-versions
 	current := a.runCommand("current")
-	plugins_details := strings.Split(current, "\n")
 
 	plugins := []*Plugin{}
-	for _, plugin_details := range plugins_details {
-		fields := strings.Fields(plugin_details)
-		plugin := NewPlugin(fields[0], fields[1])
-		if !slices.Contains(a.unhandledPlugins, plugin.name) {
+	for _, details := range strings.Split(current, "\n") {
+		fields := strings.Fields(details)
+		plugin := &Plugin{
+			name:    fields[0],
+			current: fields[1],
+		}
+		if !slices.Contains(a.unhandled, plugin.name) {
 			plugins = append(plugins, plugin)
 		}
 	}
@@ -71,6 +72,21 @@ func (a *Asdf) Plugins() []*Plugin {
 func (a *Asdf) Latest(name string) string {
 	// 1.22.0
 	return a.runCommand("latest", name)
+}
+
+func (a *Asdf) Installed(name string) []string {
+	// 3.11.7
+	//   3.12.0
+	//  *3.13.0
+	installed := a.runCommand("list", name)
+
+	versions := []string{}
+	for _, version := range strings.Split(installed, "\n") {
+		version = strings.TrimSpace(version)
+		version = strings.TrimLeft(version, "*")
+		versions = append(versions, version)
+	}
+	return versions
 }
 
 func (a *Asdf) Install(name string, version string) {
@@ -96,97 +112,101 @@ func (a *Asdf) runCommand(arg ...string) string {
 func main() {
 	asdf := NewAsdf()
 	if !asdf.Exists() {
-		fmt.Println("asdf command does not exist")
+		fmt.Println(Error("asdf command does not exist"))
 		return
 	}
 
 	plugins := asdf.Plugins()
-
 	namePlugin := make(map[string]*Plugin)
 	for _, plugin := range plugins {
 		namePlugin[plugin.name] = plugin
 	}
-
-	selectedNames := getUserSelectedNames(plugins)
-	for _, name := range selectedNames {
+	for _, name := range getSelectedPlugins(plugins) {
 		plugin := namePlugin[name]
-		plugin.SetLatest(asdf.Latest(plugin.name))
-
-		updated := updatePlugin(asdf, plugin)
-		plugin.SetUpdated(updated)
+		managePlugin(asdf, plugin)
 	}
 }
 
-func updatePlugin(asdf *Asdf, plugin *Plugin) bool {
-	fmt.Printf("Update %s: %s -> %s\n", plugin.name, plugin.current, plugin.latest)
-	if plugin.current == plugin.latest {
-		fmt.Println("  Skipping update: already using latest version")
-		return false
-	}
-
-	upgrade := getUserConfirmation(fmt.Sprintf("Update %s: %s -> %s?", plugin.name, plugin.current, plugin.latest))
-	if !upgrade {
-		fmt.Println("  Skipping update: user request")
-		return false
-	}
-
-	fmt.Printf("  Installing version %s\n", plugin.latest)
-	asdf.Install(plugin.name, plugin.latest)
-	fmt.Printf("  Setting global version %s\n", plugin.latest)
-	asdf.SetGlobal(plugin.name, plugin.latest)
-
-	cleanup := getUserConfirmation(fmt.Sprintf("Uninstall %s version %s?", plugin.name, plugin.current))
-	if cleanup {
-		fmt.Printf("  Uninstalling version %s\n", plugin.current)
-		asdf.Uninstall(plugin.name, plugin.current)
-	} else {
-		fmt.Println("  Skipping cleanup: user request")
-	}
-	return true
-}
-
-func getUserSelectedNames(plugins []*Plugin) []string {
-	var selectedNames []string
-
-	allNames := []string{}
-	options := []huh.Option[string]{}
+func getSelectedPlugins(plugins []*Plugin) []string {
+	all, options := []string{}, []huh.Option[string]{}
 	for _, plugin := range plugins {
-		allNames = append(allNames, plugin.name)
-		option := huh.NewOption(fmt.Sprintf("%s (%s)", plugin.name, plugin.current), plugin.name)
-		options = append(options, option)
+		all = append(all, plugin.name)
+		options = append(options, huh.NewOption(fmt.Sprintf("%s (%s)", plugin.name, plugin.current), plugin.name))
 	}
-
+	var selected []string
 	form := huh.NewForm(
 		huh.NewGroup(
 			huh.NewMultiSelect[string]().
-				Title("Select plugins to update (defaults to all if none)").
+				Title("Select plugins to update (defaults to all if none selected)").
 				Options(options...).
-				Value(&selectedNames),
+				Value(&selected),
 		),
 	)
-
 	err := form.Run()
 	if err != nil {
 		log.Fatal(err)
 	}
-	if len(selectedNames) == 0 {
-		return allNames
+	if len(selected) == 0 {
+		return all
 	} else {
-		return selectedNames
+		return selected
 	}
 }
 
-func getUserConfirmation(title string) bool {
-	var confirmed bool
+func managePlugin(asdf *Asdf, plugin *Plugin) {
+	fmt.Println(Title(fmt.Sprintf("Handling: %s", plugin.name)))
+	latest := asdf.Latest(plugin.name)
+	plugin.current = updatePlugin(asdf, plugin, latest)
+	for _, version := range asdf.Installed(plugin.name) {
+		cleanupPlugin(asdf, plugin, version)
+	}
+	fmt.Println()
+}
 
+func updatePlugin(asdf *Asdf, plugin *Plugin, version string) string {
+	fmt.Println(Section(fmt.Sprintf("Update: %s -> %s", plugin.current, version)))
+
+	if plugin.current == version {
+		fmt.Println(Skip("Skipped update: already using latest version"))
+		return plugin.current
+	}
+	if !confirmAction() {
+		fmt.Println(Skip("Skipped update: user request"))
+		return plugin.current
+	}
+
+	asdf.Install(plugin.name, version)
+	fmt.Println(Action(fmt.Sprintf("Installed version: %s", version)))
+	asdf.SetGlobal(plugin.name, version)
+	fmt.Println(Action(fmt.Sprintf("Set global version: %s", version)))
+	return version
+}
+
+func cleanupPlugin(asdf *Asdf, plugin *Plugin, version string) {
+	fmt.Println(Section(fmt.Sprintf("Cleanup: %s", version)))
+
+	if plugin.current == version {
+		fmt.Println(Skip("Skipped cleanup: currently in use"))
+		return
+	}
+	if !confirmAction() {
+		fmt.Println(Skip("Skipped cleanup: user request"))
+		return
+	}
+
+	asdf.Uninstall(plugin.name, version)
+	fmt.Println(Action(fmt.Sprintf("Uninstalled version: %s", version)))
+}
+
+func confirmAction() bool {
+	var confirmed bool
 	form := huh.NewForm(
 		huh.NewGroup(
 			huh.NewConfirm().
-				Title(title).
+				Title("Confirm?").
 				Value(&confirmed),
 		),
 	)
-
 	err := form.Run()
 	if err != nil {
 		log.Fatal(err)

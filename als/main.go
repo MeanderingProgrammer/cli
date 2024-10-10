@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -10,6 +9,23 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/huh"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/lipgloss/table"
+)
+
+const (
+	Purple = lipgloss.Color("#9773f2")
+	Gray   = lipgloss.Color("#c0c0c0")
+	Cyan   = lipgloss.Color("#73daca")
+	Green  = lipgloss.Color("#6bce69")
+)
+
+var (
+	Border  = lipgloss.NewStyle().Foreground(Purple)
+	Header  = lipgloss.NewStyle().Foreground(Purple).Padding(0, 1).Bold(true).Align(lipgloss.Center)
+	Row     = lipgloss.NewStyle().Foreground(Gray).Padding(0, 1).MaxWidth(200)
+	Skip    = lipgloss.NewStyle().Foreground(Cyan).Render
+	Success = lipgloss.NewStyle().Foreground(Green).Render
 )
 
 type Alias struct {
@@ -20,14 +36,6 @@ type Alias struct {
 type AliasGroup struct {
 	Name    string
 	Aliases []Alias
-}
-
-func (a *AliasGroup) ToMap() map[string]string {
-	result := make(map[string]string)
-	for _, alias := range a.Aliases {
-		result[alias.Name] = alias.Command
-	}
-	return result
 }
 
 func NewAliasGroup(name string, aliases ...Alias) AliasGroup {
@@ -109,78 +117,104 @@ func NewAliasGroups() AliasGroups {
 		),
 	}
 	result := AliasGroups{groups}
-	result.GroupNames()
-	result.AliasValues()
+	result.Validate()
 	return result
 }
 
-func (a *AliasGroups) GroupNames() []string {
-	result := []string{}
+func (a *AliasGroups) Validate() {
+	groups, aliases := []string{}, []string{}
 	for _, group := range a.Groups {
-		name := group.Name
-		if slices.Contains(result, name) {
-			log.Fatal(fmt.Sprintf("Found duplicate group name: %s", name))
+		if slices.Contains(groups, group.Name) {
+			log.Fatal(fmt.Sprintf("Duplicate group: %s", group.Name))
 		}
-		result = append(result, name)
+		groups = append(groups, group.Name)
+		for _, alias := range group.Aliases {
+			if slices.Contains(aliases, alias.Name) {
+				log.Fatal(fmt.Sprintf("Duplicate alias: %s", alias.Name))
+			}
+			aliases = append(aliases, alias.Name)
+		}
 	}
-	return result
 }
 
-func (a *AliasGroups) AliasValues() []string {
-	result := []string{}
+func (a *AliasGroups) AliasMapping() ([]string, map[string]Alias) {
+	keys, mapping := []string{}, make(map[string]Alias)
 	for _, group := range a.Groups {
 		for _, alias := range group.Aliases {
-			name := alias.Name
-			if slices.Contains(result, name) {
-				log.Fatal(fmt.Sprintf("Found duplicate alias name: %s", name))
-			}
-			value := fmt.Sprintf("%s: %s", alias.Name, alias.Command)
-			result = append(result, value)
+			key := fmt.Sprintf("%s: %s", alias.Name, alias.Command)
+			keys = append(keys, key)
+			mapping[key] = alias
 		}
 	}
-	return result
+	return keys, mapping
+}
+
+func (a *AliasGroups) GroupMapping() ([]string, map[string][]Alias) {
+	keys, mapping := []string{}, make(map[string][]Alias)
+	for _, group := range a.Groups {
+		keys = append(keys, group.Name)
+		mapping[group.Name] = group.Aliases
+	}
+	return keys, mapping
 }
 
 func main() {
 	aliasGroups := NewAliasGroups()
-	commands := map[string]func(AliasGroups){
-		"Get by Alias":   run_get_by_alias,
-		"Get by Group":   run_get_by_group,
-		"Update Aliases": run_update_aliases,
+	mapping := map[string]func(AliasGroups){
+		"Get by Alias":   getByAlias,
+		"Get by Group":   getByGroup,
+		"Update Aliases": updateAliases,
 	}
 
-	names := []string{}
-	for name := range commands {
-		names = append(names, name)
+	keys := []string{}
+	for key := range mapping {
+		keys = append(keys, key)
 	}
-	slices.Sort(names)
-	name := getUserSelection("Select command", names)
+	slices.Sort(keys)
+	selected := getSelected("command", keys)
 
-	commands[name](aliasGroups)
+	mapping[selected](aliasGroups)
 }
 
-func run_get_by_alias(aliasGroups AliasGroups) {
-	selectedAliasValue := getUserSelection("Select alias", aliasGroups.AliasValues())
-	fmt.Println(selectedAliasValue)
-}
-
-func run_get_by_group(aliasGroups AliasGroups) {
-	selectedGroup := getUserSelection("Select group", aliasGroups.GroupNames())
-	fmt.Println(selectedGroup)
-	for _, group := range aliasGroups.Groups {
-		if group.Name == selectedGroup {
-			encoder := json.NewEncoder(os.Stdout)
-			encoder.SetEscapeHTML(false)
-			encoder.SetIndent("", "  ")
-			encoder.Encode(group.ToMap())
-		}
+func getByAlias(aliasGroups AliasGroups) {
+	keys, mapping := aliasGroups.AliasMapping()
+	selected := getMultiSelected("aliases", keys)
+	aliases := []Alias{}
+	for _, key := range selected {
+		aliases = append(aliases, mapping[key])
 	}
+	renderAliases(aliases)
 }
 
-func run_update_aliases(aliasGroups AliasGroups) {
-	update := getUserUpdate()
-	if !update {
-		fmt.Println("Skipping update")
+func getByGroup(aliasGroups AliasGroups) {
+	keys, mapping := aliasGroups.GroupMapping()
+	selected := getSelected("group", keys)
+	aliases := mapping[selected]
+	renderAliases(aliases)
+}
+
+func renderAliases(aliases []Alias) {
+	t := table.New().
+		Border(lipgloss.NormalBorder()).
+		BorderStyle(Border).
+		BorderRow(true).
+		StyleFunc(func(row int, col int) lipgloss.Style {
+			if row == 0 {
+				return Header
+			} else {
+				return Row
+			}
+		}).
+		Headers("Alias", "Command")
+	for _, alias := range aliases {
+		t.Row(alias.Name, alias.Command)
+	}
+	fmt.Println(t)
+}
+
+func updateAliases(aliasGroups AliasGroups) {
+	if !confirmAction("Are you sure you want to overwrite aliases?") {
+		fmt.Println(Skip("Skipping update: user request"))
 		return
 	}
 
@@ -206,21 +240,16 @@ func run_update_aliases(aliasGroups AliasGroups) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Printf("Successfully updated %s\n", aliasFilePath)
+	fmt.Println(Success(fmt.Sprintf("Successfully updated: %s", aliasFilePath)))
 }
 
-func getUserSelection(title string, values []string) string {
+func getSelected(name string, keys []string) string {
 	var selected string
-	options := []huh.Option[string]{}
-	for _, value := range values {
-		option := huh.NewOption(value, value)
-		options = append(options, option)
-	}
 	form := huh.NewForm(
 		huh.NewGroup(
 			huh.NewSelect[string]().
-				Title(title).
-				Options(options...).
+				Title(fmt.Sprintf("Select %s", name)).
+				Options(huh.NewOptions(keys...)...).
 				Value(&selected),
 		),
 	)
@@ -231,12 +260,33 @@ func getUserSelection(title string, values []string) string {
 	return selected
 }
 
-func getUserUpdate() bool {
+func getMultiSelected(name string, keys []string) []string {
+	var selected []string
+	form := huh.NewForm(
+		huh.NewGroup(
+			huh.NewMultiSelect[string]().
+				Title(fmt.Sprintf("Select %s (defaults to all if none selected)", name)).
+				Options(huh.NewOptions(keys...)...).
+				Value(&selected),
+		),
+	)
+	err := form.Run()
+	if err != nil {
+		log.Fatal(err)
+	}
+	if len(selected) == 0 {
+		return keys
+	} else {
+		return selected
+	}
+}
+
+func confirmAction(title string) bool {
 	var update bool
 	form := huh.NewForm(
 		huh.NewGroup(
 			huh.NewConfirm().
-				Title("Are you sure you want to update aliases?").
+				Title(title).
 				Value(&update),
 		),
 	)
