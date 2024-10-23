@@ -1,19 +1,17 @@
-mod graph;
-mod util;
-mod weather;
-
 use anyhow::Result;
-use weather::WeatherClient;
+use weather::{forecast::WeatherClient, graph, info::InfoClient};
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let user_agent = util::user_agent()?;
-    let client = WeatherClient::new(&user_agent)?;
+    let info = InfoClient::default();
 
-    let loc = util::location().await?;
-    let endpoint = client.get_endpoint(&loc).await?;
-    let forecast = client.get_forecast(&endpoint).await?;
+    let user_agent = info.user_agent()?;
+    let weather = WeatherClient::new(&user_agent)?;
 
-    graph::create(&loc.city, &forecast);
+    let location = info.location().await?;
+    let endpoint = weather.get_endpoint(&location).await?;
+    let forecast = weather.get_forecast(&endpoint).await?;
+
+    graph::create(&location.city, &forecast);
     Ok(())
 }
