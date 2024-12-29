@@ -84,6 +84,7 @@ func NewAliasGroups() AliasGroups {
 				"yadm add",
 				"~/docs/",
 				"~/.config/alacritty/",
+				"~/.config/ghostty/",
 				"~/.config/git/",
 				"~/.config/helix/",
 				"~/.config/kitty/",
