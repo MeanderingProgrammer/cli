@@ -78,6 +78,11 @@ fn color(description: &str) -> NamedColor {
 
         "Chance Rain And Snow" => NamedColor::Red,
         "Slight Chance Rain And Snow" => NamedColor::Red,
+        "Rain And Snow Showers Likely" => NamedColor::Red,
+        "Rain And Snow Showers" => NamedColor::Red,
+        "Chance Snow Showers" => NamedColor::Red,
+        "Snow Showers Likely" => NamedColor::Red,
+        "Snow Showers" => NamedColor::Red,
 
         "Showers And Thunderstorms" => NamedColor::Red,
         "Showers And Thunderstorms Likely" => NamedColor::Red,

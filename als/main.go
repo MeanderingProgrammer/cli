@@ -55,6 +55,7 @@ func NewAliasGroups() AliasGroups {
 			Alias{Name: "ll", Command: "ls -latrh"},
 			Alias{Name: "workspace", Command: "cd ~/dev/repos/personal"},
 			Alias{Name: "notes", Command: "cd ~/Documents/notes"},
+			Alias{Name: "wget", Command: "wget --hsts-file=${XDG_CACHE_HOME}/wget-hsts"},
 		),
 		NewAliasGroup(
 			"Git",
