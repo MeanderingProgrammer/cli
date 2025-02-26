@@ -2,7 +2,7 @@ use crate::info::Location;
 use anyhow::Result;
 use chrono::{DateTime, Local};
 use reqwest::Client;
-use serde::{de::DeserializeOwned, Deserialize};
+use serde::{Deserialize, de::DeserializeOwned};
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]

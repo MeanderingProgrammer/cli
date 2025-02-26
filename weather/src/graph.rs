@@ -1,9 +1,9 @@
 use crate::forecast::Forecast;
-use chrono::{naive::Days, DateTime, Local};
+use chrono::{DateTime, Local, naive::Days};
 use plotly::{
-    common::{color::NamedColor, Marker, Mode, Title, Visible},
-    layout::{Axis, RangeSlider},
     Layout, Plot, Scatter,
+    common::{Marker, Mode, Title, Visible, color::NamedColor},
+    layout::{Axis, RangeSlider},
 };
 
 pub fn create(city: &str, forecast: &Forecast) {

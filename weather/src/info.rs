@@ -1,5 +1,5 @@
 use anyhow::Result;
-use serde::{de::DeserializeOwned, Deserialize};
+use serde::{Deserialize, de::DeserializeOwned};
 use std::process::Command;
 
 #[derive(Debug, Clone, Deserialize)]
