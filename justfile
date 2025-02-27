@@ -1,4 +1,4 @@
-install: install-weather install-als install-update-asdf
+install: install-weather install-als install-update-mise
 
 install-weather:
   cargo install --path weather
@@ -6,5 +6,5 @@ install-weather:
 install-als:
   cd als && go install
 
-install-update-asdf:
-  cd update-asdf && go install
+install-update-mise:
+  cd update-mise && go install
