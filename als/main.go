@@ -49,16 +49,17 @@ type AliasGroups struct {
 func NewAliasGroups() AliasGroups {
 	groups := []AliasGroup{
 		NewAliasGroup(
-			"General",
+			"general",
 			Alias{Name: "reload", Command: "source ~/.zshrc"},
 			Alias{Name: "update-sys", Command: "yadm pull && yadm bootstrap"},
 			Alias{Name: "ll", Command: "ls -latrh --color=auto"},
 			Alias{Name: "workspace", Command: "cd ~/dev/repos/personal"},
 			Alias{Name: "notes", Command: "cd ~/Documents/notes"},
 			Alias{Name: "wget", Command: "wget --hsts-file=${XDG_CACHE_HOME}/wget-hsts"},
+			Alias{Name: "exit-tmux", Command: "tmux kill-server"},
 		),
 		NewAliasGroup(
-			"Git",
+			"git",
 			Alias{Name: "gs", Command: "git status -uall"},
 			Alias{Name: "gl", Command: "git log"},
 			Alias{Name: "gp", Command: "git push"},
@@ -73,7 +74,7 @@ func NewAliasGroups() AliasGroups {
 			Alias{Name: "gundo", Command: "git restore ."},
 		),
 		NewAliasGroup(
-			"Yadm",
+			"yadm",
 			Alias{Name: "yb", Command: "bash ~/.config/yadm/bootstrap"},
 			Alias{Name: "ys", Command: "yadm status"},
 			Alias{Name: "yl", Command: "yadm log"},
@@ -103,16 +104,17 @@ func NewAliasGroups() AliasGroups {
 			}, " ")},
 			Alias{Name: "yls", Command: "yadm ls-files ~"},
 			Alias{Name: "yd", Command: "yadm diff"},
+			Alias{Name: "ydp", Command: "yadm diff HEAD"},
 		),
 		NewAliasGroup(
-			"Pass",
+			"pass",
 			Alias{Name: "pas", Command: "pass git status"},
 			Alias{Name: "pal", Command: "pass git log"},
 			Alias{Name: "pap", Command: "pass git push"},
 			Alias{Name: "papl", Command: "pass git pull"},
 		),
 		NewAliasGroup(
-			"Advent",
+			"advent",
 			Alias{Name: "a-build", Command: "./scripts/advent.py build"},
 			Alias{Name: "a-run", Command: "./scripts/advent.py run"},
 			Alias{Name: "a-gen", Command: "./scripts/advent.py generate"},
