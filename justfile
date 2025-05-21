@@ -1,10 +1,10 @@
-install: install-weather install-als install-update-mise
+install: als update-mise weather
 
-install-weather:
-  cargo install --path weather
+als:
+  -cd als && go install
 
-install-als:
-  cd als && go install
+update-mise:
+  -cd update-mise && go install
 
-install-update-mise:
-  cd update-mise && go install
+weather:
+  -cargo install --path weather
