@@ -33,22 +33,22 @@ type Alias struct {
 	Command string
 }
 
-type AliasGroup struct {
+type Group struct {
 	Name    string
 	Aliases []Alias
 }
 
-func NewAliasGroup(name string, aliases ...Alias) AliasGroup {
-	return AliasGroup{Name: name, Aliases: aliases}
+func NewGroup(name string, aliases ...Alias) Group {
+	return Group{Name: name, Aliases: aliases}
 }
 
-type AliasGroups struct {
-	Groups []AliasGroup
+type Config struct {
+	Groups []Group
 }
 
-func NewAliasGroups() AliasGroups {
-	groups := []AliasGroup{
-		NewAliasGroup(
+func NewConfig() Config {
+	groups := []Group{
+		NewGroup(
 			"general",
 			Alias{Name: "reload", Command: "source ~/.zshrc"},
 			Alias{Name: "update-sys", Command: "yadm pull && yadm bootstrap"},
@@ -58,7 +58,7 @@ func NewAliasGroups() AliasGroups {
 			Alias{Name: "wget", Command: "wget --hsts-file=${XDG_CACHE_HOME}/wget-hsts"},
 			Alias{Name: "exit-tmux", Command: "tmux kill-server"},
 		),
-		NewAliasGroup(
+		NewGroup(
 			"git",
 			Alias{Name: "gs", Command: "git status -uall"},
 			Alias{Name: "gl", Command: "git log"},
@@ -73,7 +73,7 @@ func NewAliasGroups() AliasGroups {
 			Alias{Name: "gr", Command: "git rebase -i"},
 			Alias{Name: "gundo", Command: "git restore ."},
 		),
-		NewAliasGroup(
+		NewGroup(
 			"yadm",
 			Alias{Name: "yb", Command: "bash ~/.config/yadm/bootstrap"},
 			Alias{Name: "ys", Command: "yadm status"},
@@ -106,14 +106,14 @@ func NewAliasGroups() AliasGroups {
 			Alias{Name: "yd", Command: "yadm diff"},
 			Alias{Name: "ydp", Command: "yadm diff HEAD"},
 		),
-		NewAliasGroup(
+		NewGroup(
 			"pass",
 			Alias{Name: "pas", Command: "pass git status"},
 			Alias{Name: "pal", Command: "pass git log"},
 			Alias{Name: "pap", Command: "pass git push"},
 			Alias{Name: "papl", Command: "pass git pull"},
 		),
-		NewAliasGroup(
+		NewGroup(
 			"advent",
 			Alias{Name: "a-build", Command: "./scripts/advent.py build"},
 			Alias{Name: "a-run", Command: "./scripts/advent.py run"},
@@ -121,14 +121,14 @@ func NewAliasGroups() AliasGroups {
 			Alias{Name: "a-graph", Command: "./scripts/advent.py graph"},
 		),
 	}
-	result := AliasGroups{groups}
-	result.Validate()
-	return result
+	config := Config{groups}
+	config.Validate()
+	return config
 }
 
-func (a *AliasGroups) Validate() {
+func (c *Config) Validate() {
 	groups, aliases := []string{}, []string{}
-	for _, group := range a.Groups {
+	for _, group := range c.Groups {
 		if slices.Contains(groups, group.Name) {
 			log.Fatal(fmt.Sprintf("Duplicate group: %s", group.Name))
 		}
@@ -142,9 +142,9 @@ func (a *AliasGroups) Validate() {
 	}
 }
 
-func (a *AliasGroups) AliasMapping() ([]string, map[string]Alias) {
+func (c *Config) AliasMapping() ([]string, map[string]Alias) {
 	keys, mapping := []string{}, make(map[string]Alias)
-	for _, group := range a.Groups {
+	for _, group := range c.Groups {
 		for _, alias := range group.Aliases {
 			key := fmt.Sprintf("%s: %s", alias.Name, alias.Command)
 			keys = append(keys, key)
@@ -154,9 +154,9 @@ func (a *AliasGroups) AliasMapping() ([]string, map[string]Alias) {
 	return keys, mapping
 }
 
-func (a *AliasGroups) GroupMapping() ([]string, map[string][]Alias) {
+func (c *Config) GroupMapping() ([]string, map[string][]Alias) {
 	keys, mapping := []string{}, make(map[string][]Alias)
-	for _, group := range a.Groups {
+	for _, group := range c.Groups {
 		keys = append(keys, group.Name)
 		mapping[group.Name] = group.Aliases
 	}
@@ -164,25 +164,25 @@ func (a *AliasGroups) GroupMapping() ([]string, map[string][]Alias) {
 }
 
 func main() {
-	aliasGroups := NewAliasGroups()
-	mapping := map[string]func(AliasGroups){
+	config := NewConfig()
+	commands := map[string]func(Config){
 		"Get by Alias":   getByAlias,
 		"Get by Group":   getByGroup,
 		"Update Aliases": updateAliases,
 	}
 
 	keys := []string{}
-	for key := range mapping {
+	for key := range commands {
 		keys = append(keys, key)
 	}
 	slices.Sort(keys)
-	selected := getSelected("command", keys)
+	command := getSelected("command", keys)
 
-	mapping[selected](aliasGroups)
+	commands[command](config)
 }
 
-func getByAlias(aliasGroups AliasGroups) {
-	keys, mapping := aliasGroups.AliasMapping()
+func getByAlias(config Config) {
+	keys, mapping := config.AliasMapping()
 	selected := getMultiSelected("aliases", keys)
 	aliases := []Alias{}
 	for _, key := range selected {
@@ -191,8 +191,8 @@ func getByAlias(aliasGroups AliasGroups) {
 	renderAliases(aliases)
 }
 
-func getByGroup(aliasGroups AliasGroups) {
-	keys, mapping := aliasGroups.GroupMapping()
+func getByGroup(config Config) {
+	keys, mapping := config.GroupMapping()
 	selected := getSelected("group", keys)
 	aliases := mapping[selected]
 	renderAliases(aliases)
@@ -217,14 +217,14 @@ func renderAliases(aliases []Alias) {
 	fmt.Println(t)
 }
 
-func updateAliases(aliasGroups AliasGroups) {
+func updateAliases(config Config) {
 	if !confirmAction("Are you sure you want to overwrite aliases?") {
 		fmt.Println(Skip("Skipping update: user request"))
 		return
 	}
 
 	lines := []string{}
-	for _, group := range aliasGroups.Groups {
+	for _, group := range config.Groups {
 		lines = append(lines, fmt.Sprintf("# %s", group.Name))
 		for _, alias := range group.Aliases {
 			lines = append(lines, fmt.Sprintf("alias %s=\"%s\"", alias.Name, alias.Command))
@@ -250,15 +250,11 @@ func updateAliases(aliasGroups AliasGroups) {
 
 func getSelected(name string, keys []string) string {
 	var selected string
-	form := huh.NewForm(
-		huh.NewGroup(
-			huh.NewSelect[string]().
-				Title(fmt.Sprintf("Select %s", name)).
-				Options(huh.NewOptions(keys...)...).
-				Value(&selected),
-		),
-	)
-	err := form.Run()
+	err := huh.NewSelect[string]().
+		Title(fmt.Sprintf("Select %s", name)).
+		Options(huh.NewOptions(keys...)...).
+		Value(&selected).
+		Run()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -267,15 +263,11 @@ func getSelected(name string, keys []string) string {
 
 func getMultiSelected(name string, keys []string) []string {
 	var selected []string
-	form := huh.NewForm(
-		huh.NewGroup(
-			huh.NewMultiSelect[string]().
-				Title(fmt.Sprintf("Select %s (defaults to all if none selected)", name)).
-				Options(huh.NewOptions(keys...)...).
-				Value(&selected),
-		),
-	)
-	err := form.Run()
+	err := huh.NewMultiSelect[string]().
+		Title(fmt.Sprintf("Select %s (defaults to all if none selected)", name)).
+		Options(huh.NewOptions(keys...)...).
+		Value(&selected).
+		Run()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -288,14 +280,10 @@ func getMultiSelected(name string, keys []string) []string {
 
 func confirmAction(title string) bool {
 	var update bool
-	form := huh.NewForm(
-		huh.NewGroup(
-			huh.NewConfirm().
-				Title(title).
-				Value(&update),
-		),
-	)
-	err := form.Run()
+	err := huh.NewConfirm().
+		Title(title).
+		Value(&update).
+		Run()
 	if err != nil {
 		log.Fatal(err)
 	}

@@ -57,7 +57,8 @@ type Mise struct {
 	command string
 }
 
-func NewMise(command string) (*Mise, error) {
+func NewMise() (*Mise, error) {
+	command := "mise"
 	_, err := exec.LookPath(command)
 	if err != nil {
 		return nil, fmt.Errorf(Error("%s command does not exist"), command)
@@ -133,7 +134,7 @@ func (m *Mise) execute(v any, arg ...string) ([]byte, error) {
 }
 
 func main() {
-	mise, err := NewMise("mise")
+	mise, err := NewMise()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -162,15 +163,11 @@ func choose(plugins []Plugin) ([]Plugin, error) {
 		options = append(options, huh.NewOption(plugin.Label(), plugin.name))
 	}
 	var selected []string
-	form := huh.NewForm(
-		huh.NewGroup(
-			huh.NewMultiSelect[string]().
-				Title("Select plugins to update (all if none selected)").
-				Options(options...).
-				Value(&selected),
-		),
-	)
-	err := form.Run()
+	err := huh.NewMultiSelect[string]().
+		Title("Select plugins to update (all if none selected)").
+		Options(options...).
+		Value(&selected).
+		Run()
 	if err != nil {
 		return nil, err
 	}
@@ -260,13 +257,9 @@ func cleanup(mise *Mise, plugin Plugin) error {
 
 func confirm() (bool, error) {
 	var confirmed bool
-	form := huh.NewForm(
-		huh.NewGroup(
-			huh.NewConfirm().
-				Title("Confirm?").
-				Value(&confirmed),
-		),
-	)
-	err := form.Run()
+	err := huh.NewConfirm().
+		Title("Confirm?").
+		Value(&confirmed).
+		Run()
 	return confirmed, err
 }
