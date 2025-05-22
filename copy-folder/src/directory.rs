@@ -3,6 +3,13 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Result, bail};
+use log::info;
+
+#[derive(Debug)]
+pub struct Directory {
+    pub root: PathBuf,
+    pub files: HashSet<PathBuf>,
+}
 
 #[derive(Debug)]
 pub struct Reader {
@@ -19,9 +26,14 @@ impl Reader {
     }
 
     pub fn get(&self, root: PathBuf) -> Result<Directory> {
-        println!("reading files from: {:?}", root);
-        let files = self.read(&root)?;
-        Ok(Directory::new(root, files))
+        info!("reading from: {:?}", root);
+        let files: HashSet<PathBuf> = self
+            .read(&root)?
+            .into_iter()
+            .map(|file| file.strip_prefix(&root).unwrap().to_path_buf())
+            .collect();
+        info!("number of files: {}", files.len());
+        Ok(Directory { root, files })
     }
 
     fn read(&self, dir: &Path) -> Result<Vec<PathBuf>> {
@@ -51,49 +63,5 @@ impl Reader {
             return true;
         }
         self.prefixes.iter().any(|prefix| name.starts_with(prefix))
-    }
-}
-
-#[derive(Debug)]
-pub struct Directory {
-    root: PathBuf,
-    files: HashSet<PathBuf>,
-}
-
-impl Directory {
-    pub fn new(root: PathBuf, files: Vec<PathBuf>) -> Self {
-        let files = files
-            .into_iter()
-            .map(|file| file.strip_prefix(&root).unwrap().to_path_buf())
-            .collect();
-        Self { root, files }
-    }
-
-    pub fn missing(&self, src: &Self) -> Vec<PathBuf> {
-        src.files
-            .iter()
-            .filter(|file| !self.files.contains(*file))
-            .cloned()
-            .collect()
-    }
-
-    pub fn copy(&self, src: &Self, file: &Path) -> Result<()> {
-        let from = src.absolute(file);
-        let to = self.absolute(file);
-
-        let parent = to.parent().unwrap();
-        if !parent.exists() {
-            println!("creating missing directory: {:?}", parent);
-            fs::create_dir_all(parent)?;
-        }
-
-        println!("copying: {:?} -> {:?}", from, to);
-        fs::copy(&from, &to)?;
-
-        Ok(())
-    }
-
-    fn absolute(&self, file: &Path) -> PathBuf {
-        self.root.join(file)
     }
 }

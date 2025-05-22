@@ -1,20 +1,27 @@
 mod dialog;
 mod directory;
 
+use std::fs;
+use std::path::PathBuf;
 use std::time::Instant;
 
 use anyhow::Result;
+use env_logger::Builder;
+use log::{LevelFilter, info};
 
 use directory::Reader;
 
 fn main() -> Result<()> {
+    Builder::new().filter_level(LevelFilter::Info).init();
+
     let start = Instant::now();
     let result = copy();
     let duration = start.elapsed();
-    println!("duration: {:.2?}", duration);
+    info!("duration: {:.2?}", duration);
+
     match result {
         Ok(n) => {
-            println!("files copied: {n}");
+            info!("copied: {n} files");
             Ok(())
         }
         Err(e) => Err(e),
@@ -25,11 +32,11 @@ fn copy() -> Result<usize> {
     let src = dialog::directory("source");
     let dest = dialog::directory("destination");
     if src == dest {
-        println!("skipping: source & destination are same");
+        info!("skipping: source & destination are same");
         return Ok(0);
     }
     if dialog::cancel(format!("copy files\nfrom: {:?}\nto: {:?}", src, dest)) {
-        println!("skipping: cancelled directories");
+        info!("cancelled: directories");
         return Ok(0);
     }
 
@@ -38,18 +45,28 @@ fn copy() -> Result<usize> {
     let dest = reader.get(dest)?;
 
     // files present in source but missing in destination
-    let files = dest.missing(&src);
+    let files: Vec<PathBuf> = src.files.difference(&dest.files).cloned().collect();
     if files.is_empty() {
-        println!("skipping: no new files");
+        info!("skipping: no new files");
         return Ok(0);
     }
     if dialog::cancel(format!("this will copy {} files", files.len())) {
-        println!("skipping: cancelled copy");
+        info!("cancelled: copy");
         return Ok(0);
     }
 
     for file in &files {
-        dest.copy(&src, file)?;
+        let from = src.root.join(file);
+        let to = dest.root.join(file);
+
+        let parent = to.parent().unwrap();
+        if !parent.exists() {
+            info!("creating missing directory: {:?}", parent);
+            fs::create_dir_all(parent)?;
+        }
+
+        info!("copying: {:?} -> {:?}", from, to);
+        fs::copy(&from, &to)?;
     }
     Ok(files.len())
 }
