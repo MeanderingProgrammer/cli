@@ -1,19 +1,16 @@
 mod dialog;
-mod directory;
+mod reader;
+mod transfer;
 
 use std::collections::HashSet;
-use std::fs;
 use std::path::PathBuf;
-use std::time::Instant;
 
 use anyhow::Result;
 use env_logger::Builder;
 use log::{LevelFilter, info};
-use rayon::prelude::*;
 
-use directory::Reader;
-
-const GB: u64 = 1_024u64.pow(3);
+use reader::Reader;
+use transfer::Transfer;
 
 fn main() -> Result<()> {
     Builder::new().filter_level(LevelFilter::Info).init();
@@ -29,12 +26,15 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
-    let reader = Reader::new(vec![".DS_Store".into()], vec!["._".into()]);
-    let src = reader.get(src)?;
-    let dest = reader.get(dest)?;
+    let reader = Reader {
+        names: HashSet::from([".DS_Store".into()]),
+        prefixes: vec!["._".into()],
+    };
+    let src_files = reader.get(&src)?;
+    let dest_files = reader.get(&dest)?;
 
     // files present in source but missing in destination
-    let files: Vec<PathBuf> = src.files.difference(&dest.files).cloned().collect();
+    let files: Vec<PathBuf> = src_files.difference(&dest_files).cloned().collect();
     if files.is_empty() {
         info!("skipping: no new files");
         return Ok(());
@@ -44,38 +44,7 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
-    let start = Instant::now();
-
-    // create any missing parent directories so file copying is independent
-    let parents: HashSet<PathBuf> = files
-        .iter()
-        .map(|file| dest.root.join(file))
-        .map(|path| path.parent().unwrap().to_path_buf())
-        .collect();
-    for parent in parents {
-        if !parent.exists() {
-            info!("creating missing directory: {:?}", parent);
-            fs::create_dir_all(parent)?;
-        }
-    }
-
-    // do the actual copying in parallel
-    let gb: f64 = files
-        .par_iter()
-        .map(|file| {
-            let from = src.root.join(file);
-            let to = dest.root.join(file);
-            info!("copying: {:?} -> {:?}", from, to);
-            fs::copy(&from, &to).unwrap();
-
-            let metadata = fs::metadata(&to).unwrap();
-            metadata.len() as f64 / GB as f64
-        })
-        .sum();
-
-    info!("duration: {:.2?}", start.elapsed());
-    info!("copied: {} files", files.len());
-    info!("copied: {:.4} gigabytes", gb);
+    Transfer { src, dest }.run(files)?;
 
     Ok(())
 }

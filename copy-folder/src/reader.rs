@@ -6,34 +6,21 @@ use anyhow::{Result, bail};
 use log::info;
 
 #[derive(Debug)]
-pub struct Directory {
-    pub root: PathBuf,
-    pub files: HashSet<PathBuf>,
-}
-
-#[derive(Debug)]
 pub struct Reader {
-    names: HashSet<String>,
-    prefixes: Vec<String>,
+    pub names: HashSet<String>,
+    pub prefixes: Vec<String>,
 }
 
 impl Reader {
-    pub fn new(names: Vec<String>, prefixes: Vec<String>) -> Self {
-        Self {
-            names: HashSet::from_iter(names),
-            prefixes,
-        }
-    }
-
-    pub fn get(&self, root: PathBuf) -> Result<Directory> {
+    pub fn get(&self, root: &Path) -> Result<HashSet<PathBuf>> {
         info!("reading from: {:?}", root);
         let files: HashSet<PathBuf> = self
-            .read(&root)?
+            .read(root)?
             .into_iter()
-            .map(|file| file.strip_prefix(&root).unwrap().to_path_buf())
+            .map(|file| file.strip_prefix(root).unwrap().to_path_buf())
             .collect();
         info!("number of files: {}", files.len());
-        Ok(Directory { root, files })
+        Ok(files)
     }
 
     fn read(&self, dir: &Path) -> Result<Vec<PathBuf>> {
