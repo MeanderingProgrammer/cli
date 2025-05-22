@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use rfd::{FileDialog, MessageButtons, MessageDialog, MessageDialogResult, MessageLevel};
 
-pub fn directory(title: &str) -> PathBuf {
+pub fn dir(title: &str) -> PathBuf {
     FileDialog::new()
         .set_title(title)
         .set_directory("/")

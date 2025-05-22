@@ -321,8 +321,10 @@ dependencies = [
  "anyhow",
  "env_logger",
  "log",
+ "rand",
  "rayon",
  "rfd",
+ "tempfile",
 ]
 
 [[package]]
