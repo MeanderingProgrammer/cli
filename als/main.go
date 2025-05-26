@@ -84,7 +84,6 @@ func NewConfig() Config {
 			Alias{Name: "yc", Command: "yadm commit -m"},
 			Alias{Name: "yac", Command: strings.Join([]string{
 				"yadm add",
-				"~/docs/",
 				"~/.config/alacritty/",
 				"~/.config/ghostty/",
 				"~/.config/git/",
@@ -101,6 +100,10 @@ func NewConfig() Config {
 				"~/.config/vim/",
 				"~/.config/wezterm/",
 				"~/.config/yadm/",
+				"~/.ssh/config",
+				"~/docs/",
+				"~/.zshenv",
+				"~/.zshrc",
 			}, " ")},
 			Alias{Name: "yls", Command: "yadm ls-files ~"},
 			Alias{Name: "yd", Command: "yadm diff"},
