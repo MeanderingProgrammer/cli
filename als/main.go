@@ -230,7 +230,7 @@ func updateAliases(config Config) {
 	for _, group := range config.Groups {
 		lines = append(lines, fmt.Sprintf("# %s", group.Name))
 		for _, alias := range group.Aliases {
-			lines = append(lines, fmt.Sprintf("alias %s=\"%s\"", alias.Name, alias.Command))
+			lines = append(lines, fmt.Sprintf("alias %s='%s'", alias.Name, alias.Command))
 		}
 		lines = append(lines, "")
 	}
