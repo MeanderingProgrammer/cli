@@ -56,7 +56,6 @@ func NewConfig() Config {
 			Alias{Name: "workspace", Command: "cd ~/dev/repos/personal"},
 			Alias{Name: "notes", Command: "cd ~/Documents/notes"},
 			Alias{Name: "wget", Command: "wget --hsts-file=${XDG_CACHE_HOME}/wget-hsts"},
-			Alias{Name: "exit-tmux", Command: "tmux kill-server"},
 		),
 		NewGroup(
 			"git",
@@ -72,6 +71,11 @@ func NewConfig() Config {
 			Alias{Name: "gu", Command: "git branch -u main"},
 			Alias{Name: "gr", Command: "git rebase -i"},
 			Alias{Name: "gundo", Command: "git restore ."},
+		),
+		NewGroup(
+			"tmux",
+			Alias{Name: "tmux-exit", Command: "tmux kill-server"},
+			Alias{Name: "tmux-switch", Command: "tmux switch-client -t \"$(tmux ls -F \"#S\" | fzf)\""},
 		),
 		NewGroup(
 			"yadm",
@@ -105,7 +109,7 @@ func NewConfig() Config {
 				"~/.zshenv",
 				"~/.zshrc",
 			}, " ")},
-			Alias{Name: "yls", Command: "yadm ls-files ~"},
+			Alias{Name: "yls", Command: "yadm list -a"},
 			Alias{Name: "yd", Command: "yadm diff"},
 			Alias{Name: "ydp", Command: "yadm diff HEAD"},
 		),
