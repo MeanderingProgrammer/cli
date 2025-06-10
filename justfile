@@ -1,6 +1,7 @@
 install:
   -just als
   -just copy-folder
+  -just envee
   -just update-mise
   -just weather
 
@@ -15,6 +16,9 @@ copy-folder:
 
 copy-folder-test:
   cd copy-folder && cargo test --test '*'
+
+envee:
+  cargo install --path envee
 
 update-mise:
   cd update-mise && go install
