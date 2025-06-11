@@ -1,10 +1,7 @@
-mod cli;
-mod env;
-
 use anyhow::Result;
 use clap::Parser;
 
-use cli::{Cli, Task};
+use envee::{cli::Cli, cli::Task};
 
 fn main() -> Result<()> {
     Cli::parse().run()

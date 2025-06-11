@@ -20,6 +20,9 @@ copy-folder-test:
 envee:
   cargo install --path envee
 
+envee-test:
+  cd envee && cargo test --test '*'
+
 update-mise:
   cd update-mise && go install
 

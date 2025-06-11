@@ -3,8 +3,7 @@ use std::path::PathBuf;
 use anyhow::Result;
 use clap::Parser;
 
-use crate::Task;
-use crate::env::Resolver;
+use crate::{cli::Task, env::Resolver};
 
 #[derive(Debug, Parser)]
 /// show final env

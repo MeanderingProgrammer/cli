@@ -4,8 +4,7 @@ use std::process::Command;
 use anyhow::{Result, bail};
 use clap::Parser;
 
-use crate::Task;
-use crate::env::Resolver;
+use crate::{cli::Task, env::Resolver};
 
 #[derive(Debug, Parser)]
 /// inject env at runtime
