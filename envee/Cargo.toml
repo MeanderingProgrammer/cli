@@ -7,7 +7,7 @@ edition = "2024"
 anyhow = "1.0.98"
 clap = { version = "4.5.40", features = ["derive"] }
 shellexpand = "3.1.1"
-toml = "0.8.23"
+toml = { version = "0.8.23", features = ["preserve_order"] }
 
 [dev-dependencies]
 tempfile = "3.20.0"

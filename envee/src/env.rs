@@ -3,69 +3,62 @@ use std::fs;
 use std::path::PathBuf;
 
 use anyhow::{Result, bail};
+use shellexpand::env_with_context_no_errors as expand;
 use toml::Value;
+
+type Env = Vec<(String, String)>;
+type Current = HashMap<String, String>;
 
 #[derive(Debug)]
 pub struct Resolver {
     files: Vec<PathBuf>,
-    depth: usize,
 }
 
 impl Resolver {
     pub fn new(files: Vec<PathBuf>) -> Self {
-        Self { files, depth: 20 }
+        Self { files }
     }
 
     pub fn get(&self) -> Result<Env> {
-        let mut result = HashMap::default();
+        let mut result = Env::default();
+        let mut current = Current::default();
         for file in &self.files {
             let text = fs::read_to_string(file)?;
             let value: Value = text.parse()?;
-            let env = Toml::new(&value)?.env();
-            result.extend(self.expand(env)?);
+            let toml = Toml::new(&value)?;
+            let env = self.expand(&mut current, toml.env())?;
+            result.extend(env);
         }
         Ok(result)
     }
 
-    fn expand(&self, env: Env) -> Result<Env> {
-        let mut result = env;
-        for _ in 0..self.depth {
-            let next = Self::expand_once(&result);
-            if next == result {
-                return Ok(result);
+    fn expand(&self, current: &mut Current, env: Env) -> Result<Env> {
+        let mut result = Env::default();
+        for (key, value) in env {
+            if current.contains_key(&key) {
+                bail!("duplicate environment variable: {key}");
             }
-            result = next;
+            let value = expand(&value, |s| Some(Self::lookup(s, current))).to_string();
+            result.push((key.clone(), value.clone()));
+            current.insert(key, value);
         }
-        bail!("failed to expand variables after {} iterations", self.depth);
+        Ok(result)
     }
 
-    fn expand_once(env: &Env) -> Env {
-        env.iter()
-            .map(|(key, value)| {
-                (
-                    key.clone(),
-                    match shellexpand::env_with_context(value, |s| Self::lookup(s, env)) {
-                        Ok(value) => value.to_string(),
-                        Err(_) => value.to_string(),
-                    },
-                )
-            })
-            .collect()
-    }
-
-    fn lookup(s: &str, env: &Env) -> Result<Option<String>> {
-        match env.get(s) {
-            Some(value) => Ok(Some(value.clone())),
-            None => Ok(std::env::var(s).map(Some)?),
-        }
+    fn lookup(s: &str, current: &Current) -> String {
+        current
+            .get(s)
+            .cloned()
+            .or_else(|| std::env::var(s).ok())
+            .unwrap_or_default()
     }
 }
 
-type Env = HashMap<String, String>;
+type Table = Vec<(Vec<String>, String)>;
 
 #[derive(Debug)]
 struct Toml {
-    table: HashMap<Vec<String>, String>,
+    table: Table,
 }
 
 impl Toml {
@@ -75,7 +68,7 @@ impl Toml {
         })
     }
 
-    fn flatten(value: &Value, path: Vec<String>) -> Result<HashMap<Vec<String>, String>> {
+    fn flatten(value: &Value, path: Vec<String>) -> Result<Table> {
         match value {
             Value::Array(_) => bail!("toml arrays are not supported"),
             Value::String(v) => Ok([(path, v.to_string())].into()),
@@ -84,7 +77,7 @@ impl Toml {
             Value::Boolean(v) => Ok([(path, v.to_string())].into()),
             Value::Datetime(v) => Ok([(path, v.to_string())].into()),
             Value::Table(v) => {
-                let mut result = HashMap::default();
+                let mut result = Table::default();
                 for (key, value) in v {
                     let mut path = path.clone();
                     path.push(key.to_string());
@@ -99,7 +92,7 @@ impl Toml {
         let mut result = Env::default();
         for (key, value) in &self.table {
             let key: Vec<_> = key.iter().map(|k| k.to_uppercase()).collect();
-            result.insert(key.join("_"), value.to_string());
+            result.push((key.join("_"), value.to_string()));
         }
         result
     }
