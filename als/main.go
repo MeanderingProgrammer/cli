@@ -105,6 +105,7 @@ func NewConfig() Config {
 				"~/.config/wezterm/",
 				"~/.config/yadm/",
 				"~/.ssh/config",
+				"~/.ssh/config.d/00-git.conf",
 				"~/docs/",
 				"~/.zshenv",
 				"~/.zshrc",
