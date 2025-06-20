@@ -93,7 +93,6 @@ func NewConfig() Config {
 				"~/.config/git/",
 				"~/.config/helix/",
 				"~/.config/kitty/",
-				"~/.config/lang/",
 				"~/.config/lazygit/",
 				"~/.config/mise/",
 				"~/.config/npm/",
