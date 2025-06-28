@@ -30,14 +30,16 @@ var (
 )
 
 type Plugin struct {
-	Name    string
-	Version string
+	Name      string
+	Version   string
+	Installed bool
 }
 
-func NewPlugin(name, version string) Plugin {
+func NewPlugin(name string, version string, installed bool) Plugin {
 	return Plugin{
-		Name:    name,
-		Version: version,
+		Name:      name,
+		Version:   version,
+		Installed: installed,
 	}
 }
 
@@ -50,8 +52,9 @@ func (p Plugin) Compare(other Plugin) int {
 }
 
 type Install struct {
-	Version string `json:"version"`
-	Active  bool   `json:"active"`
+	Version   string `json:"version"`
+	Active    bool   `json:"active"`
+	Installed bool   `json:"installed"`
 }
 
 type Mise struct {
@@ -81,8 +84,8 @@ func (m *Mise) Active() ([]Plugin, error) {
 
 	result := []Plugin{}
 	for name, installs := range plugins {
-		version := installs[0].Version
-		result = append(result, NewPlugin(name, version))
+		install := installs[0]
+		result = append(result, NewPlugin(name, install.Version, install.Installed))
 	}
 	slices.SortFunc(result, func(a, b Plugin) int {
 		return a.Compare(b)
@@ -105,7 +108,7 @@ func (m *Mise) Inactive(name string) ([]Plugin, error) {
 	result := []Plugin{}
 	for _, install := range installs {
 		if !install.Active {
-			result = append(result, NewPlugin(name, install.Version))
+			result = append(result, NewPlugin(name, install.Version, install.Installed))
 		}
 	}
 	return result, nil
@@ -114,7 +117,7 @@ func (m *Mise) Inactive(name string) ([]Plugin, error) {
 func (m *Mise) Latest(name string) (Plugin, error) {
 	output, err := execute(m.cmd, []string{"latest", name}, []string{})
 	version := strings.TrimSpace(string(output))
-	return NewPlugin(name, version), err
+	return NewPlugin(name, version, false), err
 }
 
 func (m *Mise) Install(plugin Plugin) ([]byte, error) {
@@ -229,7 +232,7 @@ func manage(mise *Mise, current Plugin) error {
 func update(mise *Mise, current Plugin, latest Plugin) error {
 	log.Printf(Section("[update] %s -> %s"), current.Version, latest.Version)
 
-	if current.Version == latest.Version {
+	if current.Installed && current.Version == latest.Version {
 		log.Println(Skip("[skipped] already using latest version"))
 		return nil
 	}
