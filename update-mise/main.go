@@ -29,32 +29,38 @@ var (
 	Action  = lipgloss.NewStyle().Foreground(Green).Render
 )
 
-type Plugin struct {
-	Name      string
-	Version   string
-	Installed bool
+type State struct {
+	Version   string `json:"version"`
+	Active    bool   `json:"active"`
+	Installed bool   `json:"installed"`
 }
 
-func NewPlugin(name string, version string, installed bool) Plugin {
-	return Plugin{
-		Name:      name,
+func NewState(version string, active bool, installed bool) State {
+	return State{
 		Version:   version,
+		Active:    active,
 		Installed: installed,
 	}
 }
 
+type Plugin struct {
+	Name  string
+	State State
+}
+
+func NewPlugin(name string, state State) Plugin {
+	return Plugin{
+		Name:  name,
+		State: state,
+	}
+}
+
 func (p Plugin) Label() string {
-	return fmt.Sprintf("%s@%s", p.Name, p.Version)
+	return fmt.Sprintf("%s@%s", p.Name, p.State.Version)
 }
 
 func (p Plugin) Compare(other Plugin) int {
 	return strings.Compare(p.Name, other.Name)
-}
-
-type Install struct {
-	Version   string `json:"version"`
-	Active    bool   `json:"active"`
-	Installed bool   `json:"installed"`
 }
 
 type Mise struct {
@@ -70,22 +76,22 @@ func NewMise() (*Mise, error) {
 	return &Mise{cmd: cmd}, nil
 }
 
-func (m *Mise) Active() ([]Plugin, error) {
-	output, err := execute(m.cmd, []string{"ls", "--current", "--json"}, []string{})
+func (m *Mise) Current() ([]Plugin, error) {
+	output, err := execute(m.cmd, []string{"ls", "-cJ"}, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	plugins := make(map[string][]Install)
-	err = json.Unmarshal(output, &plugins)
+	plugins := make(map[string][]State)
+	err = json.Unmarshal([]byte(output), &plugins)
 	if err != nil {
 		return nil, err
 	}
 
 	result := []Plugin{}
-	for name, installs := range plugins {
-		install := installs[0]
-		result = append(result, NewPlugin(name, install.Version, install.Installed))
+	for name, states := range plugins {
+		state := states[0]
+		result = append(result, NewPlugin(name, state))
 	}
 	slices.SortFunc(result, func(a, b Plugin) int {
 		return a.Compare(b)
@@ -94,59 +100,65 @@ func (m *Mise) Active() ([]Plugin, error) {
 }
 
 func (m *Mise) Inactive(name string) ([]Plugin, error) {
-	output, err := execute(m.cmd, []string{"ls", "--json", name}, []string{})
+	output, err := execute(m.cmd, []string{"ls", "-J", name}, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	installs := []Install{}
-	err = json.Unmarshal(output, &installs)
+	states := []State{}
+	err = json.Unmarshal([]byte(output), &states)
 	if err != nil {
 		return nil, err
 	}
 
 	result := []Plugin{}
-	for _, install := range installs {
-		if !install.Active {
-			result = append(result, NewPlugin(name, install.Version, install.Installed))
+	for _, state := range states {
+		if !state.Active {
+			result = append(result, NewPlugin(name, state))
 		}
 	}
 	return result, nil
 }
 
 func (m *Mise) Latest(name string) (Plugin, error) {
-	output, err := execute(m.cmd, []string{"latest", name}, []string{})
-	version := strings.TrimSpace(string(output))
-	return NewPlugin(name, version, false), err
+	version, err := execute(m.cmd, []string{"latest", name}, nil)
+	if err != nil {
+		return Plugin{}, err
+	}
+	return NewPlugin(name, NewState(version, false, false)), nil
 }
 
-func (m *Mise) Install(plugin Plugin) ([]byte, error) {
+func (m *Mise) Install(plugin Plugin) (string, error) {
 	log.Printf(Action("[installing] %s"), plugin.Label())
 	env := []string{}
 	if plugin.Name == "ruby" {
-		openssl, err := execute("brew", []string{"--prefix", "openssl"}, []string{})
+		openssl, err := execute("brew", []string{"--prefix", "openssl"}, nil)
 		if err != nil {
-			return nil, err
+			return "", err
 		}
-		env = append(env, "RUBY_CONFIGURE_OPTS=--with-openssl-dir="+strings.TrimSpace(string(openssl)))
+		env = append(env, "RUBY_CONFIGURE_OPTS=--with-openssl-dir="+openssl)
 	}
 	return execute(m.cmd, []string{"install", plugin.Label()}, env)
 }
 
-func (m *Mise) SetGlobal(plugin Plugin) ([]byte, error) {
+func (m *Mise) SetGlobal(plugin Plugin) (string, error) {
 	log.Printf(Action("[setting global] %s"), plugin.Label())
-	return execute(m.cmd, []string{"use", "--global", plugin.Label()}, []string{})
+	return execute(m.cmd, []string{"use", "--global", plugin.Label()}, nil)
 }
 
-func (m *Mise) Uninstall(plugin Plugin) ([]byte, error) {
+func (m *Mise) Uninstall(plugin Plugin) (string, error) {
 	log.Printf(Action("[uninstalling] %s"), plugin.Label())
-	return execute(m.cmd, []string{"uninstall", plugin.Label()}, []string{})
+	return execute(m.cmd, []string{"uninstall", plugin.Label()}, nil)
 }
 
-func execute(name string, arg []string, env []string) ([]byte, error) {
+func execute(name string, arg []string, env []string) (string, error) {
 	cmd := exec.Command(name, arg...)
 	cmd.Env = append(os.Environ(), env...)
-	return cmd.CombinedOutput()
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(output)), nil
 }
 
 func main() {
@@ -155,7 +167,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	plugins, err := mise.Active()
+	plugins, err := mise.Current()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -212,15 +224,15 @@ func manage(mise *Mise, current Plugin) error {
 		return err
 	}
 
-	inactives, err := mise.Inactive(current.Name)
+	inactive, err := mise.Inactive(current.Name)
 	if err != nil {
 		return err
 	}
-	if len(inactives) == 0 {
+	if len(inactive) == 0 {
 		log.Println(Section("[cleanup] no inactive"))
 	}
-	for _, inactive := range inactives {
-		err = cleanup(mise, inactive)
+	for _, plugin := range inactive {
+		err = cleanup(mise, plugin)
 		if err != nil {
 			return err
 		}
@@ -230,10 +242,10 @@ func manage(mise *Mise, current Plugin) error {
 }
 
 func update(mise *Mise, current Plugin, latest Plugin) error {
-	log.Printf(Section("[update] %s -> %s"), current.Version, latest.Version)
+	log.Printf(Section("[update] %s -> %s"), current.State.Version, latest.State.Version)
 
-	if current.Installed && current.Version == latest.Version {
-		log.Println(Skip("[skipped] already using latest version"))
+	if current.State.Installed && current.State.Version == latest.State.Version {
+		log.Println(Skip("[skipped] already installed latest version"))
 		return nil
 	}
 
@@ -256,7 +268,7 @@ func update(mise *Mise, current Plugin, latest Plugin) error {
 }
 
 func cleanup(mise *Mise, plugin Plugin) error {
-	log.Printf(Section("[cleanup] %s"), plugin.Version)
+	log.Printf(Section("[cleanup] %s"), plugin.State.Version)
 
 	perform, err := confirm()
 	if err != nil {
