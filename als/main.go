@@ -240,7 +240,7 @@ func updateAliases(config Config) {
 	}
 
 	home := os.Getenv("HOME")
-	aliasFilePath := path.Join(home, ".config/shell/aliases.sh")
+	aliasFilePath := path.Join(home, ".config/shell/00-aliases.sh")
 	aliasFile, err := os.Create(aliasFilePath)
 	if err != nil {
 		log.Fatal(err)
