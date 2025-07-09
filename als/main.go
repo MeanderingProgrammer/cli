@@ -90,6 +90,7 @@ func NewConfig() Config {
 				"yadm add",
 				"~/.config/alacritty/",
 				"~/.config/bin/",
+				"~/.config/fish/",
 				"~/.config/ghostty/",
 				"~/.config/git/",
 				"~/.config/helix/",
