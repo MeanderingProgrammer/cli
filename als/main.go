@@ -89,6 +89,7 @@ func NewConfig() Config {
 			Alias{Name: "yac", Command: strings.Join([]string{
 				"yadm add",
 				"~/.config/alacritty/",
+				"~/.config/bin/",
 				"~/.config/ghostty/",
 				"~/.config/git/",
 				"~/.config/helix/",
@@ -97,12 +98,12 @@ func NewConfig() Config {
 				"~/.config/mise/",
 				"~/.config/npm/",
 				"~/.config/nvim/",
-				"~/.config/shell/",
 				"~/.config/shellcheckrc",
 				"~/.config/tmux/",
 				"~/.config/vim/",
 				"~/.config/wezterm/",
 				"~/.config/yadm/",
+				"~/.config/zsh/",
 				"~/.ssh/config",
 				"~/.ssh/config.d/00-git.conf",
 				"~/docs/",
@@ -240,7 +241,7 @@ func updateAliases(config Config) {
 	}
 
 	home := os.Getenv("HOME")
-	aliasFilePath := path.Join(home, ".config/shell/00-aliases.sh")
+	aliasFilePath := path.Join(home, ".config/zsh/00-aliases.sh")
 	aliasFile, err := os.Create(aliasFilePath)
 	if err != nil {
 		log.Fatal(err)
