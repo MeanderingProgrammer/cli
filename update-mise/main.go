@@ -64,20 +64,28 @@ func (p Plugin) Compare(other Plugin) int {
 }
 
 type Mise struct {
-	cmd string
+	Cmd string
+	Env []string
 }
 
-func NewMise() (*Mise, error) {
+func NewMise() (Mise, error) {
 	cmd := "mise"
 	_, err := exec.LookPath(cmd)
 	if err != nil {
-		return nil, fmt.Errorf(Error("%s command does not exist"), cmd)
+		return Mise{}, fmt.Errorf(Error("%s command does not exist"), cmd)
 	}
-	return &Mise{cmd: cmd}, nil
+
+	env := []string{}
+	openssl, err := execute("brew", []string{"--prefix", "openssl"}, nil)
+	if err == nil {
+		env = append(env, "RUBY_CONFIGURE_OPTS=--with-openssl-dir="+openssl)
+	}
+
+	return Mise{Cmd: cmd, Env: env}, nil
 }
 
-func (m *Mise) Current() ([]Plugin, error) {
-	output, err := execute(m.cmd, []string{"ls", "-cJ"}, nil)
+func (m Mise) Current() ([]Plugin, error) {
+	output, err := execute(m.Cmd, []string{"ls", "-cJ"}, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -99,8 +107,8 @@ func (m *Mise) Current() ([]Plugin, error) {
 	return result, nil
 }
 
-func (m *Mise) Inactive(name string) ([]Plugin, error) {
-	output, err := execute(m.cmd, []string{"ls", "-J", name}, nil)
+func (m Mise) Inactive(name string) ([]Plugin, error) {
+	output, err := execute(m.Cmd, []string{"ls", "-J", name}, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -120,35 +128,27 @@ func (m *Mise) Inactive(name string) ([]Plugin, error) {
 	return result, nil
 }
 
-func (m *Mise) Latest(name string) (Plugin, error) {
-	version, err := execute(m.cmd, []string{"latest", name}, nil)
+func (m Mise) Latest(name string) (Plugin, error) {
+	version, err := execute(m.Cmd, []string{"latest", name}, nil)
 	if err != nil {
 		return Plugin{}, err
 	}
 	return NewPlugin(name, NewState(version, false, false)), nil
 }
 
-func (m *Mise) Install(plugin Plugin) (string, error) {
+func (m Mise) Install(plugin Plugin) (string, error) {
 	log.Printf(Action("[installing] %s"), plugin.Label())
-	env := []string{}
-	if plugin.Name == "ruby" {
-		openssl, err := execute("brew", []string{"--prefix", "openssl"}, nil)
-		if err != nil {
-			return "", err
-		}
-		env = append(env, "RUBY_CONFIGURE_OPTS=--with-openssl-dir="+openssl)
-	}
-	return execute(m.cmd, []string{"install", plugin.Label()}, env)
+	return execute(m.Cmd, []string{"install", plugin.Label()}, m.Env)
 }
 
-func (m *Mise) SetGlobal(plugin Plugin) (string, error) {
+func (m Mise) SetGlobal(plugin Plugin) (string, error) {
 	log.Printf(Action("[setting global] %s"), plugin.Label())
-	return execute(m.cmd, []string{"use", "--global", plugin.Label()}, nil)
+	return execute(m.Cmd, []string{"use", "--global", plugin.Label()}, nil)
 }
 
-func (m *Mise) Uninstall(plugin Plugin) (string, error) {
+func (m Mise) Uninstall(plugin Plugin) (string, error) {
 	log.Printf(Action("[uninstalling] %s"), plugin.Label())
-	return execute(m.cmd, []string{"uninstall", plugin.Label()}, nil)
+	return execute(m.Cmd, []string{"uninstall", plugin.Label()}, nil)
 }
 
 func execute(name string, arg []string, env []string) (string, error) {
@@ -211,7 +211,7 @@ func choose(plugins []Plugin) ([]Plugin, error) {
 	return result, nil
 }
 
-func manage(mise *Mise, current Plugin) error {
+func manage(mise Mise, current Plugin) error {
 	log.Printf(Title("[manage] %s"), current.Name)
 
 	latest, err := mise.Latest(current.Name)
@@ -241,7 +241,7 @@ func manage(mise *Mise, current Plugin) error {
 	return nil
 }
 
-func update(mise *Mise, current Plugin, latest Plugin) error {
+func update(mise Mise, current Plugin, latest Plugin) error {
 	log.Printf(Section("[update] %s -> %s"), current.State.Version, latest.State.Version)
 
 	if current.State.Installed && current.State.Version == latest.State.Version {
@@ -267,7 +267,7 @@ func update(mise *Mise, current Plugin, latest Plugin) error {
 	return err
 }
 
-func cleanup(mise *Mise, plugin Plugin) error {
+func cleanup(mise Mise, plugin Plugin) error {
 	log.Printf(Section("[cleanup] %s"), plugin.State.Version)
 
 	perform, err := confirm()
