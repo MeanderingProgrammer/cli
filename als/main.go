@@ -79,7 +79,7 @@ func NewConfig() Config {
 		),
 		NewGroup(
 			"yadm",
-			Alias{Name: "yb", Command: "bash ~/.config/yadm/bootstrap"},
+			Alias{Name: "yb", Command: "~/.config/yadm/bootstrap"},
 			Alias{Name: "ys", Command: "yadm status"},
 			Alias{Name: "yl", Command: "yadm log"},
 			Alias{Name: "yp", Command: "yadm push"},
