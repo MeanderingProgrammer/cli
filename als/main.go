@@ -139,12 +139,12 @@ func (c *Config) Validate() {
 	groups, aliases := []string{}, []string{}
 	for _, group := range c.Groups {
 		if slices.Contains(groups, group.Name) {
-			log.Fatal(fmt.Sprintf("Duplicate group: %s", group.Name))
+			log.Fatalf("Duplicate group: %s", group.Name)
 		}
 		groups = append(groups, group.Name)
 		for _, alias := range group.Aliases {
 			if slices.Contains(aliases, alias.Name) {
-				log.Fatal(fmt.Sprintf("Duplicate alias: %s", alias.Name))
+				log.Fatalf("Duplicate alias: %s", alias.Name)
 			}
 			aliases = append(aliases, alias.Name)
 		}
@@ -242,7 +242,7 @@ func updateAliases(config Config) {
 	}
 
 	home := os.Getenv("HOME")
-	aliasFilePath := path.Join(home, ".config/zsh/00-aliases.sh")
+	aliasFilePath := path.Join(home, ".config/zsh/00-aliases.zsh")
 	aliasFile, err := os.Create(aliasFilePath)
 	if err != nil {
 		log.Fatal(err)
