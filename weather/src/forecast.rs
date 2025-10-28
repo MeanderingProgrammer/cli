@@ -1,8 +1,9 @@
-use crate::info::Location;
 use anyhow::Result;
 use chrono::{DateTime, Local};
 use reqwest::Client;
 use serde::{Deserialize, de::DeserializeOwned};
+
+use crate::info::Location;
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]

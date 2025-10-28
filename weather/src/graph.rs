@@ -1,10 +1,11 @@
-use crate::forecast::Forecast;
 use chrono::{DateTime, Local, naive::Days};
 use plotly::{
     Layout, Plot, Scatter,
     common::{Marker, Mode, Title, Visible, color::NamedColor},
     layout::{Axis, RangeSlider},
 };
+
+use crate::forecast::Forecast;
 
 pub fn create(city: &str, forecast: &Forecast) {
     let days = forecast.map(|period| period.start_time);
@@ -75,6 +76,7 @@ fn color(description: &str) -> NamedColor {
 
         "Rain" => NamedColor::Red,
         "Rain Likely" => NamedColor::Red,
+        "Chance Rain" => NamedColor::Red,
 
         "Chance Rain And Snow" => NamedColor::Red,
         "Slight Chance Rain And Snow" => NamedColor::Red,
@@ -88,7 +90,7 @@ fn color(description: &str) -> NamedColor {
         "Showers And Thunderstorms Likely" => NamedColor::Red,
         "Slight Chance Showers And Thunderstorms" => NamedColor::Red,
 
-        _ => panic!("No color matches: {description}"),
+        _ => panic!("unknown description: {description}"),
     }
 }
 
