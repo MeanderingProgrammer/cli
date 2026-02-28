@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use anyhow::{Result, bail};
 use shellexpand::env_with_context_no_errors as expand;
-use toml::Value;
+use toml::{Table, Value};
 
 type Env = Vec<(String, String)>;
 type Current = HashMap<String, String>;
@@ -24,8 +24,7 @@ impl Resolver {
         let mut current = Current::default();
         for file in &self.files {
             let text = fs::read_to_string(file)?;
-            let value: Value = text.parse()?;
-            let toml = Toml::new(&value)?;
+            let toml = Toml::new(&text)?;
             let env = self.expand(&mut current, toml.env())?;
             result.extend(env);
         }
@@ -54,21 +53,23 @@ impl Resolver {
     }
 }
 
-type Table = Vec<(Vec<String>, String)>;
+type Data = Vec<(Vec<String>, String)>;
 
 #[derive(Debug)]
 struct Toml {
-    table: Table,
+    data: Data,
 }
 
 impl Toml {
-    fn new(value: &Value) -> Result<Self> {
+    fn new(text: &str) -> Result<Self> {
+        let table: Table = text.parse()?;
+        let value = Value::Table(table);
         Ok(Self {
-            table: Self::flatten(value, Vec::default())?,
+            data: Self::flatten(&value, Vec::default())?,
         })
     }
 
-    fn flatten(value: &Value, path: Vec<String>) -> Result<Table> {
+    fn flatten(value: &Value, path: Vec<String>) -> Result<Data> {
         match value {
             Value::Array(_) => bail!("toml arrays are not supported"),
             Value::String(v) => Ok([(path, v.to_string())].into()),
@@ -77,7 +78,7 @@ impl Toml {
             Value::Boolean(v) => Ok([(path, v.to_string())].into()),
             Value::Datetime(v) => Ok([(path, v.to_string())].into()),
             Value::Table(v) => {
-                let mut result = Table::default();
+                let mut result = Data::default();
                 for (key, value) in v {
                     let mut path = path.clone();
                     path.push(key.to_string());
@@ -90,7 +91,7 @@ impl Toml {
 
     fn env(&self) -> Env {
         let mut result = Env::default();
-        for (key, value) in &self.table {
+        for (key, value) in &self.data {
             let key: Vec<_> = key.iter().map(|k| k.to_uppercase()).collect();
             result.push((key.join("_"), value.to_string()));
         }
