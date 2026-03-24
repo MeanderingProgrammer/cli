@@ -53,7 +53,7 @@ func NewConfig() Config {
 			Alias{Name: "reload", Command: "source ~/.zshrc"},
 			Alias{Name: "update-sys", Command: "yadm pull && yadm bootstrap"},
 			Alias{Name: "ll", Command: "ls -latrh --color=auto"},
-			Alias{Name: "workspace", Command: "cd ~/dev/repos"},
+			Alias{Name: "workspace", Command: "cd ${WORKSPACE}"},
 			Alias{Name: "notes", Command: "cd ~/Documents/notes"},
 			Alias{Name: "wget", Command: "wget --hsts-file=${XDG_CACHE_HOME}/wget-hsts"},
 		),
