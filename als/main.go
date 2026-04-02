@@ -51,7 +51,7 @@ func NewConfig() Config {
 		NewGroup(
 			"general",
 			Alias{Name: "reload", Command: "source ~/.zshrc"},
-			Alias{Name: "update-sys", Command: "yadm pull && yadm bootstrap"},
+			Alias{Name: "update-sys", Command: "pushd ~; yadm pull && yadm bootstrap; popd"},
 			Alias{Name: "ll", Command: "ls -latrh --color=auto"},
 			Alias{Name: "workspace", Command: "cd ${WORKSPACE}"},
 			Alias{Name: "notes", Command: "cd ~/Documents/notes"},
